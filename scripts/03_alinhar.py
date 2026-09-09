@@ -18,7 +18,7 @@ def main(nome_base: str):
     falas = alinhar_falas(transcricao, diarizacao)
     linhas = []
     for f in falas:
-        t = f"{int(f['start']//60):02d}:{int(f['start']%60):02d}"
+        t = f"{int(f['start']//3600):02d}:{int(f['start']%3600//60):02d}:{int(f['start']%60):02d}"
         linhas.append(f"**[{t}] {f['speaker']}:** {f['text']}")
     paths["transcricao_md"].parent.mkdir(parents=True, exist_ok=True)
     with open(paths["transcricao_md"], "w", encoding="utf-8") as f:

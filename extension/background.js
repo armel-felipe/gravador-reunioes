@@ -1,5 +1,4 @@
 // Service worker: gerencia o offscreen document e repassa mensagens do popup.
-let recording = false;
 
 async function ensureOffscreen() {
   const has = await chrome.offscreen.hasDocument();
@@ -12,6 +11,17 @@ async function ensureOffscreen() {
   }
 }
 
+async function getRecordingState() {
+  const { recording } = await chrome.storage.session.get("recording");
+  if (!recording) return false;
+  const has = await chrome.offscreen.hasDocument();
+  if (!has) {
+    await chrome.storage.session.set({ recording: false });
+    return false;
+  }
+  return true;
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "start") {
     (async () => {
@@ -20,7 +30,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
       const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId });
       if (resp && resp.ok) {
-        recording = true;
+        await chrome.storage.session.set({ recording: true });
         sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: resp && resp.error });
@@ -32,13 +42,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "stop") {
     (async () => {
       await chrome.runtime.sendMessage({ type: "stop" });
-      recording = false;
+      await chrome.storage.session.set({ recording: false });
       sendResponse({ ok: true });
     })();
     return true;
   }
 
   if (msg.type === "getState") {
-    sendResponse({ recording });
+    getRecordingState().then((recording) => sendResponse({ recording }));
+    return true;
   }
 });

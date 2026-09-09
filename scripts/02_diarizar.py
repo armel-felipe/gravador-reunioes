@@ -21,7 +21,7 @@ def main(nome_base: str):
     token = token_path.read_text().strip()
     pipeline = Pipeline.from_pretrained(
         cfg["diarizacao"]["model"],
-        use_auth_token=token,
+        token=token,
     )
     kwargs = {}
     if cfg["diarizacao"]["min_speakers"]:

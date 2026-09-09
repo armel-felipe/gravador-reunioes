@@ -13,7 +13,7 @@ ollama:
   provider: "local"        # local | cloud
   local_model: "qwen3.6:35b-mlx"
   cloud_model: "qwen3.6:35b-mlx"
-  cloud_base_url: "https://ollama.com/api"   # preencher com a URL real da API
+  cloud_base_url: "https://ollama.com"       # base SEM /v1 (ex.: https://ollama.com); o código adiciona /v1/chat/completions
   cloud_api_key_env: "LPR_BZ685_OLLAMA_API_KEY"  # nome da env var com a chave
 
 caminhos:

@@ -9,13 +9,13 @@ from common import load_config
 
 
 def limpar_audios_antigos(audio_dir: str, dias: int) -> list:
-    """Apaga .wav e .webm (incluindo bruto/) com data de modificação > dias. Retorna os apagados."""
+    """Apaga .wav, .webm e .pcm (incluindo bruto/) com data de modificação > dias. Retorna os apagados."""
     limite = datetime.now() - timedelta(days=dias)
     apagados = []
     alvos = list(Path(audio_dir).glob("*.wav")) + list(Path(audio_dir).glob("*.webm"))
     bruto_dir = Path(audio_dir) / "bruto"
     if bruto_dir.exists():
-        alvos += list(bruto_dir.glob("*.webm"))
+        alvos += list(bruto_dir.glob("*.webm")) + list(bruto_dir.glob("*.pcm"))
     for p in alvos:
         if datetime.fromtimestamp(p.stat().st_mtime) < limite:
             p.unlink()

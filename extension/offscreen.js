@@ -3,18 +3,19 @@ let ws = null;
 let tabStream = null;
 let micStream = null;
 let processors = [];
+let ctx = null;
 
 function connectWs() {
   return new Promise((resolve, reject) => {
     const s = new WebSocket("ws://127.0.0.1:8765/ws");
     s.onopen = () => resolve(s);
     s.onerror = () => reject(new Error("ws error"));
+    s.onclose = () => reject(new Error("ws closed"));
     ws = s;
   });
 }
 
 function sendAudio(channel, stream) {
-  const ctx = new AudioContext();
   const source = ctx.createMediaStreamSource(stream);
   const processor = ctx.createScriptProcessor(4096, 1, 1);
   const gain = ctx.createGain();
@@ -38,7 +39,8 @@ function sendAudio(channel, stream) {
 async function startRecording(nome, streamId) {
   try {
     ws = await connectWs();
-    ws.send(JSON.stringify({ type: "start", nome }));
+    ctx = new AudioContext();
+    ws.send(JSON.stringify({ type: "start", nome, sample_rate: ctx.sampleRate }));
 
     tabStream = await navigator.mediaDevices.getUserMedia({
       audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
@@ -73,6 +75,10 @@ function stopRecording() {
   micStream = null;
   processors = [];
   ws = null;
+  if (ctx) {
+    ctx.close();
+    ctx = null;
+  }
   return { ok: true };
 }
 

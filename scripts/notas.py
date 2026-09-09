@@ -21,7 +21,7 @@ Formato: Markdown limpo, sem introdução nem conclusão."""
 
 
 def montar_prompt(transcricao: str) -> str:
-    return PROMPT.format(transcricao=transcricao)
+    return PROMPT.replace("{transcricao}", transcricao)
 
 
 def chamar_ollama(cfg: dict, prompt: str) -> str:
@@ -30,14 +30,27 @@ def chamar_ollama(cfg: dict, prompt: str) -> str:
         url = "http://localhost:11434/api/generate"
         model = cfg["ollama"]["local_model"]
         payload = {"model": model, "prompt": prompt, "stream": False}
-    else:
-        url = cfg["ollama"]["cloud_base_url"].rstrip("/") + "/generate"
+        headers = {}
+    elif provider == "cloud":
+        base_url = cfg["ollama"]["cloud_base_url"].rstrip("/")
+        url = base_url + "/v1/chat/completions"
         model = cfg["ollama"]["cloud_model"]
-        api_key = os.environ.get(cfg["ollama"]["cloud_api_key_env"], "")
-        payload = {"model": model, "prompt": prompt, "stream": False}
+        env_name = cfg["ollama"]["cloud_api_key_env"]
+        api_key = os.environ.get(env_name, "")
+        if not api_key:
+            raise RuntimeError(f"API key não configurada — defina a env var {env_name}")
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+        }
         headers = {"Authorization": f"Bearer {api_key}"}
-    resp = requests.post(url, json=payload, headers=headers if provider == "cloud" else {}, timeout=600)
+    else:
+        raise RuntimeError(f"provider inválido: {provider!r} (use 'local' ou 'cloud')")
+    resp = requests.post(url, json=payload, headers=headers, timeout=600)
     resp.raise_for_status()
+    if provider == "cloud":
+        return resp.json()["choices"][0]["message"]["content"]
     return resp.json()["response"]
 
 
