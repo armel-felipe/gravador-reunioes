@@ -17,8 +17,11 @@ function sendAudio(channel, stream) {
   const ctx = new AudioContext();
   const source = ctx.createMediaStreamSource(stream);
   const processor = ctx.createScriptProcessor(4096, 1, 1);
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
   source.connect(processor);
-  processor.connect(ctx.destination);
+  processor.connect(gain);
+  gain.connect(ctx.destination);
   processor.onaudioprocess = (e) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const buf = e.inputBuffer.getChannelData(0);
@@ -33,17 +36,30 @@ function sendAudio(channel, stream) {
 }
 
 async function startRecording(nome, streamId) {
-  ws = await connectWs();
-  ws.send(JSON.stringify({ type: "start", nome }));
+  try {
+    ws = await connectWs();
+    ws.send(JSON.stringify({ type: "start", nome }));
 
-  tabStream = await navigator.mediaDevices.getUserMedia({
-    audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
-  });
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tabStream = await navigator.mediaDevices.getUserMedia({
+      audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
+    });
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  sendAudio("tab", tabStream);
-  sendAudio("mic", micStream);
-  return { ok: true };
+    sendAudio("tab", tabStream);
+    sendAudio("mic", micStream);
+    return { ok: true };
+  } catch (e) {
+    if (tabStream) tabStream.getTracks().forEach((t) => t.stop());
+    if (micStream) micStream.getTracks().forEach((t) => t.stop());
+    tabStream = null;
+    micStream = null;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "end" }));
+      ws.close();
+    }
+    ws = null;
+    throw e;
+  }
 }
 
 function stopRecording() {
