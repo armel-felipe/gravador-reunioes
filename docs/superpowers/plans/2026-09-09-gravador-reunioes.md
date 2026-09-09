@@ -142,7 +142,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from audio_store import AudioStore
+from server.audio_store import AudioStore
 
 
 def test_start_append_finish_creates_mixed_wav():
@@ -234,7 +234,7 @@ from datetime import datetime
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from audio_store import AudioStore
+from server.audio_store import AudioStore
 
 app = FastAPI()
 store = AudioStore("99_material/audio")
@@ -338,11 +338,15 @@ git commit -m "feat: servidor local de captura com mixagem de áudio"
 - Create: `extension/popup.html`
 - Create: `extension/popup.js`
 - Create: `extension/background.js`
+- Create: `extension/offscreen.html`
+- Create: `extension/offscreen.js`
 - Create: `extension/icons/icon16.png`, `icon48.png`, `icon128.png` (gerar com script)
 
 **Interfaces:**
 - Consumes: servidor `ws://127.0.0.1:8765/ws` e `http://127.0.0.1:8765/health`.
 - Produces: popup com campo nome + botão Gravar/Parar; gravação em duas capturas (tab + mic) transmitidas ao servidor.
+
+**Nota de arquitetura:** service workers do MV3 não têm `navigator.mediaDevices` nem `AudioContext`. A captura roda num **offscreen document** (página oculta da extensão), e o service worker apenas gerencia o ciclo de vida dele. O offscreen document recebe mensagens `start`/`stop` do popup via `chrome.runtime.sendMessage`.
 
 - [ ] **Step 1: Criar `extension/manifest.json`**
 
@@ -352,7 +356,7 @@ git commit -m "feat: servidor local de captura com mixagem de áudio"
   "name": "Gravador de Reuniões",
   "version": "0.1.0",
   "description": "Grava o áudio da aba + microfone e envia para o servidor local de transcrição.",
-  "permissions": ["tabCapture", "activeTab", "storage"],
+  "permissions": ["tabCapture", "activeTab", "storage", "offscreen"],
   "host_permissions": ["http://127.0.0.1:8765/*", "ws://127.0.0.1:8765/*"],
   "action": {
     "default_popup": "popup.html",
@@ -471,81 +475,143 @@ chrome.runtime.sendMessage({ type: "getState" }, (resp) => {
 - [ ] **Step 4: Criar `extension/background.js`**
 
 ```js
-let state = { recording: false, nome: null, ws: null, tabStream: null, micStream: null };
+// Service worker: gerencia o offscreen document e repassa mensagens do popup.
+let recording = false;
+
+async function ensureOffscreen() {
+  const has = await chrome.offscreen.hasDocument();
+  if (!has) {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["USER_MEDIA"],
+      justification: "Captura de áudio da aba e do microfone para gravação de reuniões."
+    });
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "start") {
+    (async () => {
+      await ensureOffscreen();
+      const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome });
+      if (resp && resp.ok) {
+        recording = true;
+        sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false, error: resp && resp.error });
+      }
+    })().catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+
+  if (msg.type === "stop") {
+    (async () => {
+      await chrome.runtime.sendMessage({ type: "stop" });
+      recording = false;
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  if (msg.type === "getState") {
+    sendResponse({ recording });
+  }
+});
+```
+
+- [ ] **Step 5: Criar `extension/offscreen.html`**
+
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <script src="offscreen.js"></script>
+</body>
+</html>
+```
+
+- [ ] **Step 6: Criar `extension/offscreen.js`**
+
+```js
+// Offscreen document: única página da extensão com acesso a mediaDevices/AudioContext.
+let ws = null;
+let tabStream = null;
+let micStream = null;
+let processors = [];
 
 function connectWs() {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket("ws://127.0.0.1:8765/ws");
-    ws.onopen = () => resolve(ws);
-    ws.onerror = () => reject(new Error("ws error"));
-    state.ws = ws;
+    const s = new WebSocket("ws://127.0.0.1:8765/ws");
+    s.onopen = () => resolve(s);
+    s.onerror = () => reject(new Error("ws error"));
+    ws = s;
   });
 }
 
-function sendAudio(ws, channel, stream) {
+function sendAudio(channel, stream) {
   const ctx = new AudioContext();
   const source = ctx.createMediaStreamSource(stream);
   const processor = ctx.createScriptProcessor(4096, 1, 1);
   source.connect(processor);
   processor.connect(ctx.destination);
   processor.onaudioprocess = (e) => {
-    if (ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const buf = e.inputBuffer.getChannelData(0);
     const pcm = new Int16Array(buf.length);
     for (let i = 0; i < buf.length; i++) pcm[i] = Math.max(-1, Math.min(1, buf[i])) * 32767;
-    ws.send(JSON.stringify({
-      type: "audio",
-      channel,
-      data: btoa(String.fromCharCode(...new Uint8Array(pcm.buffer)))
-    }));
+    const bytes = new Uint8Array(pcm.buffer);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    ws.send(JSON.stringify({ type: "audio", channel, data: btoa(bin) }));
   };
-  return processor;
+  processors.push(processor);
+}
+
+async function startRecording(nome) {
+  ws = await connectWs();
+  ws.send(JSON.stringify({ type: "start", nome }));
+
+  const tabId = (await chrome.tabs.query({ active: true, currentWindow: true }))[0].id;
+  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+  tabStream = await navigator.mediaDevices.getUserMedia({
+    audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
+  });
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  sendAudio("tab", tabStream);
+  sendAudio("mic", micStream);
+  return { ok: true };
+}
+
+function stopRecording() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "end" }));
+    ws.close();
+  }
+  if (tabStream) tabStream.getTracks().forEach((t) => t.stop());
+  if (micStream) micStream.getTracks().forEach((t) => t.stop());
+  tabStream = null;
+  micStream = null;
+  processors = [];
+  ws = null;
+  return { ok: true };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "start") {
-    (async () => {
-      const ws = await connectWs();
-      ws.send(JSON.stringify({ type: "start", nome: msg.nome }));
-      const [tabStream] = await chrome.tabCapture.getMediaStreamId ? [] : [];
-      // tabCapture: captura a aba ativa
-      const tabId = (await chrome.tabs.query({ active: true, currentWindow: true }))[0].id;
-      const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
-      const tabStream2 = await navigator.mediaDevices.getUserMedia({
-        audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
-      });
-      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      state.tabStream = tabStream2;
-      state.micStream = micStream;
-      sendAudio(ws, "tab", tabStream2);
-      sendAudio(ws, "mic", micStream);
-      state.recording = true;
-      state.nome = msg.nome;
-      sendResponse({ ok: true });
-    })().catch((e) => sendResponse({ ok: false, error: String(e) }));
+    startRecording(msg.nome).then(sendResponse).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
-
   if (msg.type === "stop") {
-    if (state.ws) {
-      state.ws.send(JSON.stringify({ type: "end" }));
-      state.ws.close();
-    }
-    if (state.tabStream) state.tabStream.getTracks().forEach((t) => t.stop());
-    if (state.micStream) state.micStream.getTracks().forEach((t) => t.stop());
-    state.recording = false;
-    state.nome = null;
-    sendResponse({ ok: true });
-    return true;
-  }
-
-  if (msg.type === "getState") {
-    sendResponse({ recording: state.recording });
+    sendResponse(stopRecording());
   }
 });
 ```
 
-- [ ] **Step 5: Gerar ícones**
+- [ ] **Step 7: Gerar ícones**
 
 ```bash
 mkdir -p extension/icons
@@ -565,7 +631,7 @@ for s in (16, 48, 128):
 "
 ```
 
-- [ ] **Step 6: Teste manual — carregar a extensão**
+- [ ] **Step 8: Teste manual — carregar a extensão**
 
 1. Abra `chrome://extensions`, ative "Modo do desenvolvedor", clique "Carregar sem compactação" e selecione `extension/`.
 2. Rode `./start.sh` (servidor de pé).
@@ -574,7 +640,7 @@ for s in (16, 48, 128):
 
 Expected: arquivos presentes com o nome correto.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add extension/
@@ -724,9 +790,16 @@ from pyannote.audio import Pipeline
 def main(nome_base: str):
     cfg = load_config()
     paths = audio_paths(nome_base)
+    token_path = Path.home() / ".cache/huggingface/token"
+    if not token_path.exists():
+        print("ERRO: token do HuggingFace não encontrado em ~/.cache/huggingface/token")
+        print("Crie uma conta em huggingface.co, aceite os termos de pyannote/speaker-diarization-3.1")
+        print("e salve o token no arquivo ~/.cache/huggingface/token")
+        sys.exit(1)
+    token = token_path.read_text().strip()
     pipeline = Pipeline.from_pretrained(
         cfg["diarizacao"]["model"],
-        use_auth_token=Path.home() / ".cache/huggingface/token",
+        use_auth_token=token,
     )
     kwargs = {}
     if cfg["diarizacao"]["min_speakers"]:
@@ -1012,14 +1085,14 @@ from common import load_config
 
 
 def limpar_audios_antigos(audio_dir: str, dias: int) -> list:
-    """Apaga .wav e .webm com data de modificação > dias. Retorna os apagados."""
+    """Apaga .wav e .webm (incluindo bruto/) com data de modificação > dias. Retorna os apagados."""
     limite = datetime.now() - timedelta(days=dias)
     apagados = []
-    for p in Path(audio_dir).glob("*.wav"):
-        if datetime.fromtimestamp(p.stat().st_mtime) < limite:
-            p.unlink()
-            apagados.append(str(p))
-    for p in Path(audio_dir).glob("*.webm"):
+    alvos = list(Path(audio_dir).glob("*.wav")) + list(Path(audio_dir).glob("*.webm"))
+    bruto_dir = Path(audio_dir) / "bruto"
+    if bruto_dir.exists():
+        alvos += list(bruto_dir.glob("*.webm"))
+    for p in alvos:
         if datetime.fromtimestamp(p.stat().st_mtime) < limite:
             p.unlink()
             apagados.append(str(p))
