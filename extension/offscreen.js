@@ -32,12 +32,10 @@ function sendAudio(channel, stream) {
   processors.push(processor);
 }
 
-async function startRecording(nome) {
+async function startRecording(nome, streamId) {
   ws = await connectWs();
   ws.send(JSON.stringify({ type: "start", nome }));
 
-  const tabId = (await chrome.tabs.query({ active: true, currentWindow: true }))[0].id;
-  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   tabStream = await navigator.mediaDevices.getUserMedia({
     audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
   });
@@ -64,7 +62,7 @@ function stopRecording() {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "start") {
-    startRecording(msg.nome).then(sendResponse).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    startRecording(msg.nome, msg.streamId).then(sendResponse).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
   if (msg.type === "stop") {
