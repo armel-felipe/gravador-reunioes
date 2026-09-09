@@ -45,3 +45,26 @@ Commit: `8a291e5` — `fix: protocolo PCM16 com rate explícito, sanitização d
 - `uvicorn server.main:app` + `curl /health` → `{"status":"ok"}`
 - Teste WS manual (websockets): Origin ausente → 403; Origin evil → 403; nome `../../../tmp/evil` → error + close 1008; ciclo completo PCM16 → wav `pcm_s16le,16000,1` (ffprobe). Servidor encerrado após o teste; artefatos de teste removidos.
 - Sanity `notas.py`: braces literais preservados; provider inválido e env vazia levantam RuntimeError claro.
+
+---
+
+# Relatório — Fixes residuais da revisão final
+
+Commit: `fix(server): Origin check por hostname exato, guarda de sessão e validação de sample_rate`
+
+## Origin check por hostname exato
+- `server/main.py`: removida a checagem `origin.startswith(ORIGENS_PERMITIDAS)` (que aceitava `http://localhost.evil.com` e `http://127.0.0.1.evil.com`).
+- Nova função `origin_permitida(origin)`: usa `urllib.parse.urlsplit` e compara `hostname` exatamente com `("localhost", "127.0.0.1")`; `chrome-extension://` continua permitido; origin ausente → False.
+- Verificação ao vivo (uvicorn + websockets): `http://localhost.evil.com` e `http://127.0.0.1.evil.com` → handshake 403; `http://localhost` e `http://127.0.0.1` → aceitos (start/end OK).
+
+## Minor 1 — `audio` antes de `start`
+- `server/main.py`: flag `started` por conexão. Mensagens `audio`/`end` antes do `start` respondem `{"type":"error","message":"sessão não iniciada"}` e continuam (sem AttributeError no `append()`).
+- Verificação ao vivo: `audio` antes de `start` → error, conexão permanece aberta.
+
+## Minor 2 — `sample_rate` não-int
+- `server/main.py`: `sample_rate` validado como `int` positivo (rejeita `null`, string, bool, ≤ 0) → `{"type":"error","message":"sample_rate inválido"}` + close 1008.
+- Verificação ao vivo: `sample_rate: null` e `sample_rate: "48000"` → error + close 1008.
+
+## Comandos executados
+- `.venv/bin/python -m pytest scripts/ server/ -v` → **7 passed** (0.11s)
+- Teste WS ao vivo (uvicorn `127.0.0.1:8765`): origins evil → 403; origins locais → aceitas; audio-before-start → error; sample_rate inválido → error + 1008. Servidor encerrado; artefatos de teste removidos de `99_material/audio/`.

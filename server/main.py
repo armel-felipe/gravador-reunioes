@@ -4,6 +4,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import uvicorn
 import yaml
@@ -13,7 +14,15 @@ from server.audio_store import AudioStore
 
 ROOT = Path(__file__).resolve().parent.parent
 NOME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
-ORIGENS_PERMITIDAS = ("chrome-extension://", "http://localhost", "http://127.0.0.1")
+
+
+def origin_permitida(origin: str) -> bool:
+    if not origin:
+        return False
+    if origin.startswith("chrome-extension://"):
+        return True
+    host = urlsplit(origin).hostname
+    return host in ("localhost", "127.0.0.1")
 
 
 def load_config() -> dict:
@@ -35,10 +44,11 @@ async def health():
 async def ws_endpoint(ws: WebSocket):
     global active_session
     origin = ws.headers.get("origin", "")
-    if not origin or not origin.startswith(ORIGENS_PERMITIDAS):
+    if not origin_permitida(origin):
         await ws.close(code=1008)
         return
     await ws.accept()
+    started = False
     try:
         while True:
             msg = json.loads(await ws.receive_text())
@@ -49,16 +59,27 @@ async def ws_endpoint(ws: WebSocket):
                     await ws.close(code=1008)
                     return
                 sample_rate = msg.get("sample_rate", 48000)
+                if not isinstance(sample_rate, int) or isinstance(sample_rate, bool) or sample_rate <= 0:
+                    await ws.send_text(json.dumps({"type": "error", "message": "sample_rate inválido"}))
+                    await ws.close(code=1008)
+                    return
                 now = datetime.now()
                 session_id = now.strftime("%Y_%m_%d_%H_%M") + "_" + nome
                 store.start_session(session_id, nome, sample_rate)
                 active_session = session_id
+                started = True
                 await ws.send_text(json.dumps({"type": "started", "session_id": session_id}))
             elif msg.get("type") == "audio":
+                if not started:
+                    await ws.send_text(json.dumps({"type": "error", "message": "sessão não iniciada"}))
+                    continue
                 channel = msg.get("channel", "tab")
                 chunk = base64.b64decode(msg["data"])
                 store.append(channel, chunk)
             elif msg.get("type") == "end":
+                if not started:
+                    await ws.send_text(json.dumps({"type": "error", "message": "sessão não iniciada"}))
+                    continue
                 wav = store.finish()
                 active_session = None
                 await ws.send_text(json.dumps({"type": "ended", "wav": wav}))
