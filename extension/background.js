@@ -1,5 +1,4 @@
 // Service worker: gerencia o offscreen document e repassa mensagens do popup.
-let toasterWindowId = null;
 
 async function ensureOffscreen() {
   const has = await chrome.offscreen.hasDocument();
@@ -25,26 +24,20 @@ async function getStreamIdComRetry(tabId) {
   }
 }
 
-async function openToaster() {
-  if (toasterWindowId !== null) return;
-  const win = await chrome.windows.create({
-    url: "toaster.html",
-    type: "popup",
-    width: 260,
-    height: 60,
-    focused: false
-  });
-  toasterWindowId = win.id;
+async function showToaster(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "toaster:show" });
+  } catch (e) {
+    // aba sem content script (ex.: chrome://) — o popup continua sendo o controle
+  }
 }
 
-async function closeToaster() {
-  if (toasterWindowId === null) return;
+async function hideToaster(tabId) {
   try {
-    await chrome.windows.remove(toasterWindowId);
+    await chrome.tabs.sendMessage(tabId, { type: "toaster:hide" });
   } catch (e) {
-    // janela já fechada pelo usuário — ok
+    // ok
   }
-  toasterWindowId = null;
 }
 
 async function getRecordingState() {
@@ -71,7 +64,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId, comMic: msg.comMic !== false });
       if (resp && resp.ok) {
         await chrome.storage.session.set({ recording: true });
-        await openToaster();
+        await showToaster(tab.id);
         sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: resp && resp.error });
@@ -82,10 +75,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "stop") {
     (async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       await chrome.runtime.sendMessage({ type: "stop" });
       await chrome.storage.session.set({ recording: false });
       await chrome.storage.session.remove("startTime");
-      await closeToaster();
+      if (tab && tab.id !== undefined) await hideToaster(tab.id);
       // Fecha o offscreen: libera a aba e o microfone imediatamente
       try {
         await chrome.offscreen.closeDocument();

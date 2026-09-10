@@ -38,8 +38,7 @@ def load_config() -> dict:
 
 
 app = FastAPI()
-store = AudioStore(load_config()["caminhos"]["audio_dir"])
-active_session = None
+AUDIO_DIR = load_config()["caminhos"]["audio_dir"]
 
 
 @app.get("/health")
@@ -49,12 +48,13 @@ async def health():
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
-    global active_session
     origin = ws.headers.get("origin", "")
     if not origin_permitida(origin):
         await ws.close(code=1008)
         return
     await ws.accept()
+    # Cada conexão tem seu próprio store — conexões simultâneas não interferem.
+    store = AudioStore(AUDIO_DIR)
     started = False
     try:
         while True:
@@ -73,7 +73,6 @@ async def ws_endpoint(ws: WebSocket):
                 now = datetime.now()
                 session_id = now.strftime("%Y_%m_%d_%H_%M") + "_" + sanitizar_nome_arquivo(nome)
                 store.start_session(session_id, nome, sample_rate)
-                active_session = session_id
                 started = True
                 await ws.send_text(json.dumps({"type": "started", "session_id": session_id}))
             elif msg.get("type") == "audio":
@@ -88,18 +87,16 @@ async def ws_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({"type": "error", "message": "sessão não iniciada"}))
                     continue
                 wav = store.finish()
-                active_session = None
                 started = False
                 await ws.send_text(json.dumps({"type": "ended", "wav": wav}))
                 break
     except WebSocketDisconnect:
         # Gravação interrompida: salva o que chegou (só se ainda não finalizou)
-        if active_session:
+        if started:
             try:
                 store.finish()
             except Exception:
                 pass
-            active_session = None
 
 
 if __name__ == "__main__":

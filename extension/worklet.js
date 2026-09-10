@@ -5,6 +5,11 @@ class PCM16Processor extends AudioWorkletProcessor {
   constructor(options) {
     super();
     this.channel = (options.processorOptions && options.processorOptions.channel) || "tab";
+    // O AudioWorklet processa em blocos de 128 frames (~2.7ms a 48kHz).
+    // Acumula até 4096 samples antes de enviar (mesmo tamanho do ScriptProcessor
+    // antigo) — evita milhares de mensagens WebSocket por minuto.
+    this.buffer = new Int16Array(4096);
+    this.bufferLen = 0;
   }
 
   process(inputs, outputs) {
@@ -17,13 +22,19 @@ class PCM16Processor extends AudioWorkletProcessor {
       for (let c = 0; c < input.length && c < output.length; c++) {
         output[c].set(input[c]);
       }
-      // Converte Float32 → PCM16 (canal 0) e envia ao offscreen (que tem o WebSocket).
+      // Converte Float32 → PCM16 e acumula
       const buf = input[0];
-      const pcm = new Int16Array(buf.length);
       for (let i = 0; i < buf.length; i++) {
-        pcm[i] = Math.max(-1, Math.min(1, buf[i])) * 32767;
+        this.buffer[this.bufferLen++] = Math.max(-1, Math.min(1, buf[i])) * 32767;
+        if (this.bufferLen >= 4096) {
+          this.port.postMessage(
+            { channel: this.channel, pcm: this.buffer.buffer },
+            [this.buffer.buffer]
+          );
+          this.buffer = new Int16Array(4096);
+          this.bufferLen = 0;
+        }
       }
-      this.port.postMessage({ channel: this.channel, pcm: pcm.buffer }, [pcm.buffer]);
     }
     return true;
   }
