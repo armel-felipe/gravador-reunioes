@@ -46,7 +46,8 @@ async function startRecording(nome, streamId, comMic) {
   try {
     ws = await connectWs();
     ctx = new AudioContext();
-    await ctx.audioWorklet.addModule("worklet.js");
+    // addModule exige URL absoluta em offscreen documents (caminho relativo falha)
+    await ctx.audioWorklet.addModule(chrome.runtime.getURL("worklet.js"));
     ws.send(JSON.stringify({ type: "start", nome, sample_rate: ctx.sampleRate }));
 
     tabStream = await navigator.mediaDevices.getUserMedia({

@@ -49,7 +49,7 @@ toggleBtn.addEventListener("click", async () => {
       timerInterval = setInterval(tick, 1000);
       statusDiv.textContent = "Gravando…";
     } else {
-      statusDiv.textContent = "Erro ao iniciar gravação.";
+      statusDiv.textContent = "Erro: " + ((resp && resp.error) || "desconhecido");
     }
   } else {
     await chrome.runtime.sendMessage({ type: "stop" });
