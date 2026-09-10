@@ -48,6 +48,18 @@ toggleBtn.addEventListener("click", async () => {
       statusDiv.textContent = "Servidor offline — rode ./start.sh";
       return;
     }
+    // Pedir a permissão do microfone AQUI (popup visível) — o prompt aparece
+    // corretamente. No offscreen (página oculta) o prompt é dispensado
+    // silenciosamente (NotAllowedError: Permission dismissed).
+    if (comMicCheckbox.checked) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop()); // só para conceder a permissão
+      } catch (e) {
+        statusDiv.textContent = "Permissão de microfone negada.";
+        return;
+      }
+    }
     const resp = await chrome.runtime.sendMessage({ type: "start", nome, comMic: comMicCheckbox.checked });
     if (resp && resp.ok) {
       recording = true;
