@@ -11,13 +11,14 @@ class PCM16Processor extends AudioWorkletProcessor {
     const input = inputs[0];
     const output = outputs[0];
     if (input && input[0]) {
-      const buf = input[0];
-      // Pass-through: o áudio segue para o gain node do offscreen,
-      // que controla o monitoramento (aba: volume 1.0, mic: volume 0).
-      if (output && output[0]) {
-        output[0].set(buf);
+      // Pass-through de TODOS os canais: preserva o áudio original
+      // (stereo da aba) no monitoramento. O gain node do offscreen
+      // controla o volume (aba: 1.0, mic: 0).
+      for (let c = 0; c < input.length && c < output.length; c++) {
+        output[c].set(input[c]);
       }
-      // Converte Float32 → PCM16 e envia ao offscreen (que tem o WebSocket).
+      // Converte Float32 → PCM16 (canal 0) e envia ao offscreen (que tem o WebSocket).
+      const buf = input[0];
       const pcm = new Int16Array(buf.length);
       for (let i = 0; i < buf.length; i++) {
         pcm[i] = Math.max(-1, Math.min(1, buf[i])) * 32767;

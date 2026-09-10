@@ -6,7 +6,20 @@ const comMicCheckbox = document.getElementById("comMic");
 
 let recording = false;
 let timerInterval = null;
-let seconds = 0;
+
+function formatTime(totalSeconds) {
+  const m = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const s = String(totalSeconds % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function updateTimer() {
+  chrome.storage.session.get("startTime", ({ startTime }) => {
+    if (!startTime) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    timerDiv.textContent = formatTime(elapsed);
+  });
+}
 
 async function serverOnline() {
   try {
@@ -24,13 +37,6 @@ function updateUI() {
   comMicCheckbox.disabled = recording;
 }
 
-function tick() {
-  seconds++;
-  const m = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const s = String(seconds % 60).padStart(2, "0");
-  timerDiv.textContent = `${m}:${s}`;
-}
-
 toggleBtn.addEventListener("click", async () => {
   if (!recording) {
     const nome = nomeInput.value.trim();
@@ -45,8 +51,9 @@ toggleBtn.addEventListener("click", async () => {
     const resp = await chrome.runtime.sendMessage({ type: "start", nome, comMic: comMicCheckbox.checked });
     if (resp && resp.ok) {
       recording = true;
-      seconds = 0;
-      timerInterval = setInterval(tick, 1000);
+      await chrome.storage.session.set({ startTime: Date.now() });
+      updateTimer();
+      timerInterval = setInterval(updateTimer, 1000);
       statusDiv.textContent = "Gravando…";
     } else {
       statusDiv.textContent = "Erro: " + ((resp && resp.error) || "desconhecido");
@@ -55,6 +62,7 @@ toggleBtn.addEventListener("click", async () => {
     await chrome.runtime.sendMessage({ type: "stop" });
     recording = false;
     clearInterval(timerInterval);
+    await chrome.storage.session.remove("startTime");
     statusDiv.textContent = "Gravação salva. Processe no chat do OpenWork.";
   }
   updateUI();
@@ -65,6 +73,8 @@ chrome.runtime.sendMessage({ type: "getState" }, (resp) => {
   if (resp && resp.recording) {
     recording = true;
     updateUI();
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 1000);
     statusDiv.textContent = "Gravando…";
   }
 });
