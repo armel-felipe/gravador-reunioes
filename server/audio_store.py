@@ -34,6 +34,9 @@ class AudioStore:
             fh = self._mic_fh
         else:
             raise ValueError(f"canal desconhecido: {channel!r}")
+        if fh is None:
+            # Chunk chegou depois do end/finish (áudio ainda em voo) — ignora.
+            return
         fh.write(chunk)
 
     def finish(self) -> str:

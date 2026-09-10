@@ -1,4 +1,5 @@
 // Service worker: gerencia o offscreen document e repassa mensagens do popup.
+let toasterWindowId = null;
 
 async function ensureOffscreen() {
   const has = await chrome.offscreen.hasDocument();
@@ -9,6 +10,28 @@ async function ensureOffscreen() {
       justification: "Captura de áudio da aba e do microfone para gravação de reuniões."
     });
   }
+}
+
+async function openToaster() {
+  if (toasterWindowId !== null) return;
+  const win = await chrome.windows.create({
+    url: "toaster.html",
+    type: "popup",
+    width: 260,
+    height: 60,
+    focused: false
+  });
+  toasterWindowId = win.id;
+}
+
+async function closeToaster() {
+  if (toasterWindowId === null) return;
+  try {
+    await chrome.windows.remove(toasterWindowId);
+  } catch (e) {
+    // janela já fechada pelo usuário — ok
+  }
+  toasterWindowId = null;
 }
 
 async function getRecordingState() {
@@ -31,6 +54,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId, comMic: msg.comMic !== false });
       if (resp && resp.ok) {
         await chrome.storage.session.set({ recording: true });
+        await openToaster();
         sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: resp && resp.error });
@@ -43,6 +67,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       await chrome.runtime.sendMessage({ type: "stop" });
       await chrome.storage.session.set({ recording: false });
+      await chrome.storage.session.remove("startTime");
+      await closeToaster();
       sendResponse({ ok: true });
     })();
     return true;
