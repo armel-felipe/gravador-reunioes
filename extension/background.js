@@ -27,9 +27,20 @@ async function getStreamIdComRetry(tabId) {
 async function showToaster(tabId) {
   try {
     const { startTime } = await chrome.storage.session.get("startTime");
-    await chrome.tabs.sendMessage(tabId, { type: "toaster:show", startTime: startTime || Date.now() });
+    const msg = { type: "toaster:show", startTime: startTime || Date.now() };
+    try {
+      await chrome.tabs.sendMessage(tabId, msg);
+    } catch (e) {
+      // Página aberta antes da recarga da extensão não tem o content script.
+      // Injeta na hora e tenta de novo.
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["toaster-content.js"]
+      });
+      await chrome.tabs.sendMessage(tabId, msg);
+    }
   } catch (e) {
-    // aba sem content script (ex.: chrome://) — o popup continua sendo o controle
+    // aba sem suporte (ex.: chrome://) — o popup continua sendo o controle
   }
 }
 
