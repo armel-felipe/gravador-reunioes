@@ -6,9 +6,17 @@ description: "Processa uma gravação de reunião: transcreve (Whisper), diariza
 # Processar Gravação
 
 ## Quando usar
-Quando o usuário pedir para processar uma gravação de reunião/aula capturada pela extensão.
+Quando o usuário pedir para processar uma gravação de reunião/aula capturada pela extensão, ou via automação diária.
 
 ## Passos
+
+0. **Listar pendentes (se pedido genérico):**
+   - Se o usuário pediu "processa as pendentes" / "processa tudo" / automação diária, rode:
+     ```bash
+     .venv/bin/python scripts/06_pendentes.py
+     ```
+   - O script lista eventos com áudio mas **sem notas** (`notas/<evento>.md` = marcador de processado).
+   - Processe cada um na sequência. Se não houver pendentes, avise e encerre.
 
 1. **Identificar o áudio:**
    - Cada gravação é um evento: `99_material/<nome_base>/audio/<nome_base>.wav` (nome_base = `YYYY_MM_DD_HH_MM_<nome>`).

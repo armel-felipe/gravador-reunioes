@@ -12,6 +12,23 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 ## Tasks
 
+### R-006 — Processamento automático pós-gravação (lote diário)
+- **Prioridade:** 🟡 Média
+- **Status:** 🔨 Em andamento
+- **Criada em:** 2026-09-10
+- **Motivo:** Hoje o processamento é manual ("processa a gravação" no chat). Automatizar em lote diário, preservando a camada agêntica.
+- **Escopo:**
+  - Script `06_pendentes.py` — lista eventos com áudio mas sem notas (marcador de processado = `notas/<evento>.md`) ✅
+  - Skill `processar-gravacao` atualizada para processar pendentes em lote ✅
+  - Automação diária (horário a definir) que roda a skill com "processa as pendentes"
+- **Limitações conhecidas:**
+  - Automação Desktop roda apenas com o OpenWork aberto e conectado
+  - Processamento é local (Whisper/pyannote) — não há runner cloud
+  - Reprocessamento: eventos sem notas são retentados automaticamente; eventos com notas são pulados
+- **Critérios de aceite:** automação diária processa só os pendentes; eventos já processados são pulados.
+
+---
+
 ### R-001 — Migrar captura de áudio para AudioWorkletNode
 - **Prioridade:** 🟡 Média
 - **Status:** ✅ Concluída
@@ -75,6 +92,7 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 | Data | Task | Ação |
 |---|---|---|
+| 2026-09-10 | R-006 | Criada (processamento automático em lote diário) |
 | 2026-09-09 | R-001 | Criada e iniciada (migração AudioWorklet) |
 | 2026-09-09 | R-001 | ✅ Concluída (implementada, validada; aguarda confirmação manual no Chrome) |
 | 2026-09-09 | R-002 | Criada (evolução C do design) |
