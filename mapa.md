@@ -101,7 +101,8 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 | `manifest.json` | Manifesto MV3: permissões (`tabCapture`, `offscreen`, `storage`), host permissões para `127.0.0.1:8765` |
 | `popup.html` / `popup.js` | Interface: campo nome + botão Gravar/Parar + timer. Checa se o servidor está online antes de gravar |
 | `background.js` | Service worker: cria/gerencia o offscreen document, obtém o `streamId` da aba, repassa mensagens, persiste estado em `chrome.storage.session` |
-| `offscreen.html` / `offscreen.js` | Página oculta que de fato captura (única com acesso a `mediaDevices`/`AudioContext`): captura aba + microfone, converte para PCM16 e envia via WebSocket |
+| `offscreen.html` / `offscreen.js` | Página oculta que de fato captura (única com acesso a `mediaDevices`/`AudioContext`): captura aba + microfone, usa `AudioWorkletNode` (API moderna) e envia PCM16 via WebSocket |
+| `worklet.js` | Processador de áudio (AudioWorklet): converte Float32 → PCM16 em thread própria e envia ao offscreen via `port.postMessage()` |
 | `icons/` | Ícones 16/48/128 |
 
 **Fluxo de mensagens:** popup → `chrome.runtime.sendMessage` → background (service worker) → offscreen document → WebSocket → servidor.

@@ -1,8 +1,9 @@
 // Offscreen document: única página da extensão com acesso a mediaDevices/AudioContext.
+// A captura usa AudioWorkletNode (API moderna) — o processamento roda em thread própria.
 let ws = null;
 let tabStream = null;
 let micStream = null;
-let processors = [];
+let workletNodes = [];
 let ctx = null;
 
 function connectWs() {
@@ -15,43 +16,47 @@ function connectWs() {
   });
 }
 
-function sendAudio(channel, stream, volume) {
+function sendPcmToServer(channel, pcmBuffer) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const bytes = new Uint8Array(pcmBuffer);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  ws.send(JSON.stringify({ type: "audio", channel, data: btoa(bin) }));
+}
+
+async function sendAudio(channel, stream, volume) {
   const source = ctx.createMediaStreamSource(stream);
-  const processor = ctx.createScriptProcessor(4096, 1, 1);
   const gain = ctx.createGain();
   // tab: volume 1.0 (usuário continua ouvindo a reunião — o tabCapture silencia a aba)
   // mic: volume 0 (evita feedback do microfone com os alto-falantes)
   gain.gain.value = volume;
-  source.connect(processor);
-  processor.connect(gain);
+
+  const node = new AudioWorkletNode(ctx, "pcm16-processor", {
+    processorOptions: { channel }
+  });
+  node.port.onmessage = (e) => sendPcmToServer(e.data.channel, e.data.pcm);
+
+  source.connect(node);
+  node.connect(gain);
   gain.connect(ctx.destination);
-  processor.onaudioprocess = (e) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    const buf = e.inputBuffer.getChannelData(0);
-    const pcm = new Int16Array(buf.length);
-    for (let i = 0; i < buf.length; i++) pcm[i] = Math.max(-1, Math.min(1, buf[i])) * 32767;
-    const bytes = new Uint8Array(pcm.buffer);
-    let bin = "";
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    ws.send(JSON.stringify({ type: "audio", channel, data: btoa(bin) }));
-  };
-  processors.push(processor);
+  workletNodes.push(node);
 }
 
 async function startRecording(nome, streamId, comMic) {
   try {
     ws = await connectWs();
     ctx = new AudioContext();
+    await ctx.audioWorklet.addModule("worklet.js");
     ws.send(JSON.stringify({ type: "start", nome, sample_rate: ctx.sampleRate }));
 
     tabStream = await navigator.mediaDevices.getUserMedia({
       audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
     });
-    sendAudio("tab", tabStream, 1.0);
+    await sendAudio("tab", tabStream, 1.0);
 
     if (comMic) {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      sendAudio("mic", micStream, 0);
+      await sendAudio("mic", micStream, 0);
     }
     return { ok: true };
   } catch (e) {
@@ -77,7 +82,7 @@ function stopRecording() {
   if (micStream) micStream.getTracks().forEach((t) => t.stop());
   tabStream = null;
   micStream = null;
-  processors = [];
+  workletNodes = [];
   ws = null;
   if (ctx) {
     ctx.close();
