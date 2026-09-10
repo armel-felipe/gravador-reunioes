@@ -13,7 +13,14 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from server.audio_store import AudioStore
 
 ROOT = Path(__file__).resolve().parent.parent
-NOME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+# Nome digitado no popup: aceita letras, números, espaços, hífens, underscores e acentos.
+# Apenas caracteres de controle e separadores de caminho são proibidos (segurança).
+NOME_RE = re.compile(r"^[^/\\\x00-\x1f]{1,80}$")
+
+
+def sanitizar_nome_arquivo(nome: str) -> str:
+    """Converte o nome digitado em um sufixo seguro para nome de arquivo."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", nome).strip("_") or "reuniao"
 
 
 def origin_permitida(origin: str) -> bool:
@@ -64,7 +71,7 @@ async def ws_endpoint(ws: WebSocket):
                     await ws.close(code=1008)
                     return
                 now = datetime.now()
-                session_id = now.strftime("%Y_%m_%d_%H_%M") + "_" + nome
+                session_id = now.strftime("%Y_%m_%d_%H_%M") + "_" + sanitizar_nome_arquivo(nome)
                 store.start_session(session_id, nome, sample_rate)
                 active_session = session_id
                 started = True

@@ -50,6 +50,22 @@ async function startRecording(nome, streamId, comMic) {
     await ctx.audioWorklet.addModule(chrome.runtime.getURL("worklet.js"));
     ws.send(JSON.stringify({ type: "start", nome, sample_rate: ctx.sampleRate }));
 
+    // Espera a confirmação do servidor antes de prosseguir.
+    // Se o servidor rejeitar (nome inválido, etc.), aborta com o erro.
+    const resposta = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("timeout aguardando servidor")), 5000);
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "started") {
+          clearTimeout(timeout);
+          resolve(msg);
+        } else if (msg.type === "error") {
+          clearTimeout(timeout);
+          reject(new Error(msg.message));
+        }
+      };
+    });
+
     tabStream = await navigator.mediaDevices.getUserMedia({
       audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
     });
