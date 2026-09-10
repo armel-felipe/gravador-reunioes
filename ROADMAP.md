@@ -12,6 +12,24 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 ## Tasks
 
+### R-007 — Map-reduce na geração de notas (acelerar LLM em reuniões longas)
+- **Prioridade:** 🔴 Alta
+- **Status:** 🔨 Em andamento
+- **Criada em:** 2026-09-10
+- **Motivo:** Processar 1h de reunião (704 falas) com a transcrição inteira num único prompt levou **26 min** no glm-5.3 cloud (87% do tempo total). Contexto gigante degrada a qualidade ("lost in the middle") e é lento.
+- **Escopo:**
+  - Dividir a transcrição em **blocos de ~10 min com 2 min de overlap** (evita fala cortada e perde conexões entre blocos)
+  - **Map:** cada bloco gera resumo + tópicos + decisões + ações (estrutura igual à atual)
+  - **Reduce:** consolida os resumos parciais num documento final, com instrução de cruzar referências entre blocos
+  - **Provider configurável** (local ou cloud via `config.yaml`) — testar os dois
+  - Teste comparativo na mesma gravação (map-reduce vs. atual) para validar qualidade
+- **Critérios de aceite:**
+  - Tempo de notas para 1h de reunião: ~26 min → **< 10 min**
+  - Qualidade das notas igual ou melhor (comparação lado a lado)
+  - Testes do projeto passando
+
+---
+
 ### R-006 — Processamento automático pós-gravação (lote diário)
 - **Prioridade:** 🟡 Média
 - **Status:** ❌ Cancelada (automação desativada em 2026-09-10)
@@ -97,7 +115,7 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 | Data | Task | Ação |
 |---|---|---|
-| 2026-09-10 | R-006 | ❌ Cancelada (automação desativada — limite de 15 min não comporta transcrição local; processamento volta a ser manual) |
+| 2026-09-10 | R-007 | Criada e iniciada (map-reduce nas notas) |
 | 2026-09-10 | R-006 | Criada (processamento automático em lote diário) |
 | 2026-09-09 | R-001 | Criada e iniciada (migração AudioWorklet) |
 | 2026-09-09 | R-001 | ✅ Concluída (implementada, validada; aguarda confirmação manual no Chrome) |
