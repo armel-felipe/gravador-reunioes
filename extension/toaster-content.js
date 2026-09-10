@@ -23,8 +23,24 @@
   const timerEl = el.querySelector("#gravador-timer");
   const stopBtn = el.querySelector("#gravador-stop");
 
+  // Se a extensão for recarregada/atualizada, o contexto é invalidado e o
+  // content script antigo fica órfão na página. Detecta e se auto-destrói.
+  function contextoInvalido(e) {
+    return e && e.message && e.message.includes("Extension context invalidated");
+  }
+
+  function limparOrfao() {
+    clearInterval(timerInterval);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    window.__gravadorToaster = false;
+  }
+
   stopBtn.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "stop" });
+    try {
+      chrome.runtime.sendMessage({ type: "stop" });
+    } catch (e) {
+      if (contextoInvalido(e)) limparOrfao();
+    }
   });
 
   // Content scripts NÃO têm acesso a chrome.storage.session (só popup/background).
@@ -39,25 +55,33 @@
     timerEl.textContent = `${m}:${s}`;
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === "toaster:show") {
-      startTime = msg.startTime || Date.now();
-      el.style.display = "flex";
-      updateTimer();
-    } else if (msg.type === "toaster:hide") {
-      el.style.display = "none";
-      startTime = null;
-    }
-  });
+  try {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === "toaster:show") {
+        startTime = msg.startTime || Date.now();
+        el.style.display = "flex";
+        updateTimer();
+      } else if (msg.type === "toaster:hide") {
+        el.style.display = "none";
+        startTime = null;
+      }
+    });
+  } catch (e) {
+    if (contextoInvalido(e)) limparOrfao();
+  }
 
   // Estado inicial (ex.: página recarregou durante a gravação)
-  chrome.runtime.sendMessage({ type: "getState" }, (resp) => {
-    if (resp && resp.recording) {
-      startTime = resp.startTime || Date.now();
-      el.style.display = "flex";
-      updateTimer();
-    }
-  });
+  try {
+    chrome.runtime.sendMessage({ type: "getState" }, (resp) => {
+      if (resp && resp.recording) {
+        startTime = resp.startTime || Date.now();
+        el.style.display = "flex";
+        updateTimer();
+      }
+    });
+  } catch (e) {
+    if (contextoInvalido(e)) limparOrfao();
+  }
 
-  setInterval(updateTimer, 1000);
+  const timerInterval = setInterval(updateTimer, 1000);
 })();
