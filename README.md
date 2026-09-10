@@ -73,6 +73,9 @@ projeto/
 | **Chrome** | google.com/chrome | Extensão (Manifest V3) |
 | **Ollama** | ollama.com | Geração de notas (local) |
 | **Conta HuggingFace** | huggingface.co | Token para baixar modelos de diarização (grátis) |
+| **OpenWork Desktop** (ou OpenCode CLI) | openworklabs.com | Orquestração agêntica: skills, processamento e automações |
+
+> **Sobre o OpenWork/OpenCode:** o processamento (transcrição → diarização → notas) é orquestrado pelo **agente** — as skills `processar-gravacao` e `limpar-material` vivem em `.opencode/skills/` e são executadas pelo OpenWork Desktop (ou OpenCode CLI) com acesso a este workspace. **As automações diárias (02:00 e 08:00) rodam apenas com o OpenWork Desktop aberto e conectado** — o processamento é local (Whisper/pyannote), então não há runner cloud. Se o app estiver fechado no horário, basta pedir *"processa as pendentes"* / *"limpa o material"* no chat.
 
 ### Passo a passo
 
@@ -145,6 +148,46 @@ Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"
 
 - **Manual:** peça *"limpa o material"* no chat
 - **Automático:** a automação diária (08:00) apaga áudios com mais de 30 dias, mantendo transcrições e notas
+
+---
+
+## 🤖 Fluxo atual (com automações)
+
+| Horário | Automação | O que faz |
+|---|---|---|
+| **02:00** | Processar gravações pendentes | Processa eventos com áudio mas **sem notas** (marcador = `notas/<evento>.md`); processados são pulados, falhas são retentadas |
+| **08:00** | Limpeza de material | Apaga a pasta `audio/` de eventos com mais de 30 dias, mantendo transcrições e notas |
+
+**Fluxo do dia a dia:**
+1. `./start.sh` → servidor de pé
+2. Gravar reuniões/aulas durante o dia (extensão + toaster)
+3. **02:00** — processamento automático das pendentes
+4. **08:00** — limpeza automática dos áudios antigos
+5. De manhã, as notas estão em `99_material/<evento>/notas/`
+
+> ⚠️ **Importante:** as automações rodam apenas com o **OpenWork Desktop aberto e conectado** (o processamento é local). Se o app estiver fechado no horário, a execução é perdida — mas você pode pedir *"processa as pendentes"* / *"limpa o material"* no chat a qualquer momento.
+
+---
+
+## 📦 Dependências de runtime
+
+| Componente | Dependência | Versão | Onde |
+|---|---|---|---|
+| **Servidor** | Python | 3.11+ | `server/requirements.txt` (fastapi, uvicorn, websockets) |
+| **Pipeline** | faster-whisper | 1.0.* | `scripts/requirements.txt` |
+| **Pipeline** | pyannote.audio | 3.4.* | `scripts/requirements.txt` |
+| **Pipeline** | huggingface_hub | 0.26.* | `scripts/requirements.txt` (compatível com pyannote 3.4) |
+| **Pipeline** | numpy | 1.26.* | `scripts/requirements.txt` (compatível com pyannote) |
+| **Pipeline** | requests | — | `scripts/requirements.txt` |
+| **Sistema** | ffmpeg | 8.x (brew) | `brew install ffmpeg` |
+| **Sistema** | Ollama | — | `ollama.com` (modelos locais ou cloud) |
+| **Sistema** | Chrome | — | Extensão MV3 |
+| **Sistema** | HuggingFace token | — | `.env` (`HUGGINGFACE_TOKEN=`) |
+| **Orquestração** | OpenWork Desktop / OpenCode CLI | — | Skills + automações (ver nota acima) |
+
+**Modelos do Ollama (locais, `ollama list`):** `qwen3.6:35b-mlx`, `gemma4:26b-mlx`, `qwen3.8:27b-mlx`, `nemotron-3.5-lightning:30b-a3b`, `ornith-1.5:35b` — selecione em `config.yaml` (um descomentado por vez).
+
+**Modelos do Whisper:** `large-v3` (padrão, melhor qualidade) ou `medium` (mais rápido) — em `config.yaml`.
 
 ---
 
