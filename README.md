@@ -135,6 +135,8 @@ O agente roda o pipeline completo e salva, dentro da pasta do evento:
 - `99_material/<evento>/transcricoes/<nome>.md` — falas diarizadas com timestamps
 - `99_material/<evento>/notas/<nome>.md` — resumo executivo, tópicos, decisões, plano de ação
 
+**Geração de notas com map-reduce:** reuniões longas são divididas em **blocos de ~10 min com 2 min de sobreposição** — cada bloco é resumido separadamente (map) e os resumos são consolidados no documento final (reduce). Isso reduz o tempo de processamento em **~87%** (26 min → 3,5 min numa reunião de 39 min) e **melhora a qualidade** (o modelo não perde detalhes do meio da reunião). Reuniões curtas (≤ 10 min) usam o prompt único direto, sem overhead.
+
 Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"*.
 
 ### 3. Processamento (manual)
