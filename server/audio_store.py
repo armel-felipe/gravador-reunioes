@@ -40,6 +40,9 @@ class AudioStore:
         fh.write(chunk)
 
     def finish(self) -> str:
+        if self.session_id is None:
+            # finish() já foi chamado (ou nunca houve sessão) — nada a fazer
+            return ""
         if self._tab_fh is not None:
             self._tab_fh.close()
         if self._mic_fh is not None:

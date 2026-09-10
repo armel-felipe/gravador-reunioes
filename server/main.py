@@ -89,10 +89,11 @@ async def ws_endpoint(ws: WebSocket):
                     continue
                 wav = store.finish()
                 active_session = None
+                started = False
                 await ws.send_text(json.dumps({"type": "ended", "wav": wav}))
                 break
     except WebSocketDisconnect:
-        # Gravação interrompida: salva o que chegou
+        # Gravação interrompida: salva o que chegou (só se ainda não finalizou)
         if active_session:
             try:
                 store.finish()

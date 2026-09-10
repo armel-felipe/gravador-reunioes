@@ -44,15 +44,22 @@ async function sendAudio(channel, stream, volume) {
 
 async function startRecording(nome, streamId, comMic) {
   try {
+    // 1. Consome o streamId IMEDIATAMENTE — ele expira em ~5s.
+    //    Se demorar (connectWs, addModule), o Chrome rejeita a captura.
+    tabStream = await navigator.mediaDevices.getUserMedia({
+      audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
+    });
+
+    // 2. Conecta ao servidor e prepara o áudio
     ws = await connectWs();
     ctx = new AudioContext();
     // addModule exige URL absoluta em offscreen documents (caminho relativo falha)
     await ctx.audioWorklet.addModule(chrome.runtime.getURL("worklet.js"));
     ws.send(JSON.stringify({ type: "start", nome, sample_rate: ctx.sampleRate }));
 
-    // Espera a confirmação do servidor antes de prosseguir.
-    // Se o servidor rejeitar (nome inválido, etc.), aborta com o erro.
-    const resposta = await new Promise((resolve, reject) => {
+    // 3. Espera a confirmação do servidor antes de prosseguir.
+    //    Se o servidor rejeitar (nome inválido, etc.), aborta com o erro.
+    await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("timeout aguardando servidor")), 5000);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
@@ -66,9 +73,7 @@ async function startRecording(nome, streamId, comMic) {
       };
     });
 
-    tabStream = await navigator.mediaDevices.getUserMedia({
-      audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
-    });
+    // 4. Inicia o monitoramento e a captura
     await sendAudio("tab", tabStream, 1.0);
 
     if (comMic) {
