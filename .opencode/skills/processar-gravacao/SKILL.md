@@ -12,7 +12,7 @@ Quando o usuário pedir para processar uma gravação de reunião/aula capturada
 
 1. **Identificar o áudio:**
    - Cada gravação é um evento: `99_material/<nome_base>/audio/<nome_base>.wav` (nome_base = `YYYY_MM_DD_HH_MM_<nome>`).
-   - Se o usuário deu um nome, use `99_material/audio/<nome_base>/<nome_base>.wav` — na prática, procure o evento em `99_material/` cujo nome contenha o que o usuário citou.
+   - Se o usuário deu um nome, procure o evento em `99_material/` cujo nome contenha o que o usuário citou (ex.: "aula" → `99_material/2026_09_09_22_59_aula_python/`).
    - Se pediu "a última", liste os eventos `99_material/*/audio/*.wav` e use o mais recente (por mtime).
    - Se não houver áudio, avise e encerre.
 

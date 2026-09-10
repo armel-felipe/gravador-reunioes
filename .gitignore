@@ -4,11 +4,7 @@ __pycache__/
 .DS_Store
 .env
 .opencode/openwork/
-99_material/audio/*.wav
-99_material/audio/*.webm
-99_material/audio/bruto/*
-!99_material/audio/bruto/.gitkeep
-99_material/transcricoes/*.md
-99_material/transcricoes/_tmp/*
-!99_material/transcricoes/_tmp/.gitkeep
-99_material/notas/*.md
+# Material gerado: tudo dentro de 99_material/ é ignorado, exceto .gitkeep
+99_material/**
+!99_material/**/
+!99_material/**/.gitkeep

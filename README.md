@@ -50,11 +50,12 @@ projeto/
 ├── .env.example            ← modelo do .env (token HuggingFace)
 ├── start.sh                ← sobe o servidor local
 └── 99_material/            ← material gerado (separado do código)
-    ├── audio/
-    │   ├── bruto/          ← gravações brutas (tab + mic separados)
-    │   └── YYYY_MM_DD_HH_MM_<nome>.wav  ← mixado, pronto para processar
-    ├── transcricoes/       ← transcrições diarizadas (.md)
-    └── notas/              ← resumos + planos de ação (.md)
+    └── YYYY_MM_DD_HH_MM_<nome>/   ← um diretório por gravação (evento)
+        ├── audio/
+        │   ├── YYYY_MM_DD_HH_MM_<nome>.wav  ← mixado, pronto para processar
+        │   └── bruto/      ← gravações brutas (tab + mic separados)
+        ├── transcricoes/   ← transcrições diarizadas (.md) + _tmp/
+        └── notas/          ← resumos + planos de ação (.md)
 ```
 
 ---
@@ -118,7 +119,7 @@ curl http://127.0.0.1:8765/health
 4. O Chrome pede permissão de **microfone** — aceite (é para capturar sua voz junto)
 5. Ao final, clique em **Parar** → "Gravação salva"
 
-O arquivo é salvo como `99_material/audio/2026_09_09_14_30_reuniao_orcamento_ana.wav` (data/hora + nome).
+O arquivo é salvo como `99_material/2026_09_09_14_30_reuniao_orcamento_ana/audio/2026_09_09_14_30_reuniao_orcamento_ana.wav` (data/hora + nome, agrupado por evento).
 
 ### 2. Processar (transcrever + diarizar + notas)
 
@@ -126,9 +127,9 @@ No chat do OpenWork, peça:
 
 > **"processa a gravação de hoje"** (ou "processa a última gravação", ou "processa <nome>")
 
-O agente roda o pipeline completo e salva:
-- `99_material/transcricoes/<nome>.md` — falas diarizadas com timestamps
-- `99_material/notas/<nome>.md` — resumo executivo, tópicos, decisões, plano de ação
+O agente roda o pipeline completo e salva, dentro da pasta do evento:
+- `99_material/<evento>/transcricoes/<nome>.md` — falas diarizadas com timestamps
+- `99_material/<evento>/notas/<nome>.md` — resumo executivo, tópicos, decisões, plano de ação
 
 Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"*.
 
