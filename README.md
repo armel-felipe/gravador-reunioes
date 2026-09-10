@@ -38,6 +38,7 @@ projeto/
 │   ├── 03_alinhar.py       ← cruza transcrição + diarização → .md diarizado
 │   ├── 04_notas.py         ← Ollama: transcrição → resumo + plano de ação
 │   ├── 05_limpar.py        ← apaga áudios com mais de 30 dias
+│   ├── 06_pendentes.py     ← lista eventos com áudio mas sem notas (para o lote diário)
 │   ├── common.py           ← config + caminhos compartilhados
 │   ├── alinhar.py          ← lógica de alinhamento (testável)
 │   ├── notas.py            ← lógica de notas (testável)
@@ -125,7 +126,7 @@ O arquivo é salvo como `99_material/2026_09_09_14_30_reuniao_orcamento_ana/audi
 
 No chat do OpenWork, peça:
 
-> **"processa a gravação de hoje"** (ou "processa a última gravação", ou "processa <nome>")
+> **"processa a gravação de hoje"** (ou "processa a última gravação", ou "processa <nome>", ou "processa as pendentes")
 
 O agente roda o pipeline completo e salva, dentro da pasta do evento:
 - `99_material/<evento>/transcricoes/<nome>.md` — falas diarizadas com timestamps
@@ -133,7 +134,14 @@ O agente roda o pipeline completo e salva, dentro da pasta do evento:
 
 Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"*.
 
-### 3. Limpar material antigo
+### 3. Processamento automático (lote diário)
+
+- **Automação "Processar gravações pendentes — 02:00"** (diária): processa automaticamente todos os eventos com áudio mas **sem notas** geradas.
+- **Marcador de processado:** um evento é considerado processado quando tem `notas/<evento>.md`. Eventos já processados são **pulados**; falhas no meio do pipeline são **retentadas** no próximo lote.
+- **Para listar os pendentes manualmente:** `.venv/bin/python scripts/06_pendentes.py`
+- ⚠️ **Limitação:** a automação roda apenas com o OpenWork aberto e conectado (o processamento é local). Se o app estiver fechado no horário, peça *"processa as pendentes"* no chat.
+
+### 4. Limpar material antigo
 
 - **Manual:** peça *"limpa o material"* no chat
 - **Automático:** a automação diária (08:00) apaga áudios com mais de 30 dias, mantendo transcrições e notas
@@ -161,7 +169,7 @@ Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"
 .venv/bin/python -m pytest scripts/ server/ -v
 ```
 
-Cobre: alinhamento de falas, geração de prompt de notas, limpeza de áudios antigos e o fluxo de armazenamento/mixagem do servidor.
+Cobre: alinhamento de falas, geração de prompt de notas, limpeza de áudios antigos, listagem de pendentes e o fluxo de armazenamento/mixagem do servidor.
 
 ---
 
