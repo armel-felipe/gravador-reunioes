@@ -6,6 +6,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import torch
+
+# PyTorch 2.6+ carrega checkpoints com weights_only=True por padrão;
+# os checkpoints do pyannote contêm classes customizadas que precisam ser permitidas.
+from pyannote.audio.core.task import Problem, Resolution, Specifications
+from pyannote.audio.models.embedding import XVectorMFCC, XVectorSincNet
+from pyannote.audio.models.segmentation import PyanNet
+
+torch.serialization.add_safe_globals([
+    torch.torch_version.TorchVersion,
+    Specifications,
+    Problem,
+    Resolution,
+    XVectorMFCC,
+    XVectorSincNet,
+    PyanNet,
+])
+
 from common import load_config, audio_paths
 from pyannote.audio import Pipeline
 
@@ -37,7 +55,7 @@ def main(nome_base: str):
     token = carregar_token()
     pipeline = Pipeline.from_pretrained(
         cfg["diarizacao"]["model"],
-        token=token,
+        use_auth_token=token,
     )
     kwargs = {}
     if cfg["diarizacao"]["min_speakers"]:
