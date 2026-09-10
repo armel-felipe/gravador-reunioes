@@ -3,7 +3,7 @@
   "name": "Gravador de Reuniões",
   "version": "0.1.0",
   "description": "Grava o áudio da aba + microfone e envia para o servidor local de transcrição.",
-  "permissions": ["tabCapture", "activeTab", "storage", "offscreen", "scripting"],
+  "permissions": ["tabCapture", "activeTab", "storage", "offscreen", "scripting", "microphone"],
   "host_permissions": ["http://127.0.0.1:8765/*", "ws://127.0.0.1:8765/*", "<all_urls>"],
   "content_scripts": [
     {
