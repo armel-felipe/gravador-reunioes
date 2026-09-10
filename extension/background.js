@@ -28,7 +28,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await ensureOffscreen();
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
-      const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId });
+      const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId, comMic: msg.comMic !== false });
       if (resp && resp.ok) {
         await chrome.storage.session.set({ recording: true });
         sendResponse({ ok: true });

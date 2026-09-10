@@ -2,6 +2,7 @@ const nomeInput = document.getElementById("nome");
 const toggleBtn = document.getElementById("toggle");
 const statusDiv = document.getElementById("status");
 const timerDiv = document.getElementById("timer");
+const comMicCheckbox = document.getElementById("comMic");
 
 let recording = false;
 let timerInterval = null;
@@ -20,6 +21,7 @@ function updateUI() {
   toggleBtn.textContent = recording ? "Parar" : "Gravar";
   timerDiv.hidden = !recording;
   nomeInput.disabled = recording;
+  comMicCheckbox.disabled = recording;
 }
 
 function tick() {
@@ -40,7 +42,7 @@ toggleBtn.addEventListener("click", async () => {
       statusDiv.textContent = "Servidor offline — rode ./start.sh";
       return;
     }
-    const resp = await chrome.runtime.sendMessage({ type: "start", nome });
+    const resp = await chrome.runtime.sendMessage({ type: "start", nome, comMic: comMicCheckbox.checked });
     if (resp && resp.ok) {
       recording = true;
       seconds = 0;
