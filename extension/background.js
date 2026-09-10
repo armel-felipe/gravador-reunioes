@@ -3,12 +3,25 @@ let toasterWindowId = null;
 
 async function ensureOffscreen() {
   const has = await chrome.offscreen.hasDocument();
-  if (!has) {
-    await chrome.offscreen.createDocument({
-      url: "offscreen.html",
-      reasons: ["USER_MEDIA"],
-      justification: "Captura de áudio da aba e do microfone para gravação de reuniões."
-    });
+  if (has) {
+    // Fecha o offscreen anterior: libera a aba de qualquer captura pendente
+    // (o Chrome recusa nova captura enquanto houver uma ativa).
+    await chrome.offscreen.closeDocument();
+  }
+  await chrome.offscreen.createDocument({
+    url: "offscreen.html",
+    reasons: ["USER_MEDIA"],
+    justification: "Captura de áudio da aba e do microfone para gravação de reuniões."
+  });
+}
+
+async function getStreamIdComRetry(tabId) {
+  try {
+    return await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+  } catch (e) {
+    // 1 retry: o Chrome às vezes falha se outra captura estava sendo liberada
+    await new Promise((r) => setTimeout(r, 500));
+    return await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   }
 }
 
@@ -50,7 +63,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       await ensureOffscreen();
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+      if (!tab || tab.id === undefined) {
+        sendResponse({ ok: false, error: "Nenhuma aba ativa encontrada." });
+        return;
+      }
+      const streamId = await getStreamIdComRetry(tab.id);
       const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId, comMic: msg.comMic !== false });
       if (resp && resp.ok) {
         await chrome.storage.session.set({ recording: true });
@@ -69,6 +86,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await chrome.storage.session.set({ recording: false });
       await chrome.storage.session.remove("startTime");
       await closeToaster();
+      // Fecha o offscreen: libera a aba e o microfone imediatamente
+      try {
+        await chrome.offscreen.closeDocument();
+      } catch (e) {
+        // já fechado — ok
+      }
       sendResponse({ ok: true });
     })();
     return true;
