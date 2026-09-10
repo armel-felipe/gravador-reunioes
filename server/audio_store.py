@@ -40,11 +40,17 @@ class AudioStore:
         fh.write(chunk)
 
     def finish(self) -> str:
-        self._tab_fh.close()
-        self._mic_fh.close()
+        if self._tab_fh is not None:
+            self._tab_fh.close()
+        if self._mic_fh is not None:
+            self._mic_fh.close()
         self._tab_fh = None
         self._mic_fh = None
         wav_path = self.base_dir / f"{self.session_id}.wav"
+        # Se os brutos não existem (ex.: limpeza manual), não há o que mixar.
+        if not self._tab_path.exists() and not self._mic_path.exists():
+            self.session_id = None
+            return str(wav_path)
         # Mixa os dois canais em um WAV mono no sample rate da sessão
         cmd = [
             "ffmpeg", "-y",
@@ -59,4 +65,5 @@ class AudioStore:
             raise RuntimeError(
                 f"ffmpeg falhou ao mixar {self.session_id}: {r.stderr.decode(errors='replace')}"
             )
+        self.session_id = None
         return str(wav_path)
