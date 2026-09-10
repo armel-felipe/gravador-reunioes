@@ -12,6 +12,28 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 ## Tasks
 
+### R-008 — Solução híbrida de processamento noturno (launchd + OpenWork sob demanda)
+- **Prioridade:** 🟡 Média
+- **Status:** 📋 Planejada (não implementar até validar a aplicação em uso real)
+- **Criada em:** 2026-09-10
+- **Motivo:** A automação do OpenWork tem timeout fixo de 15 min (não comporta transcrição de áudios longos) e depende do app aberto. O launchd (nativo do macOS) roda sem timeout e com o app fechado — mas perde a camada agêntica.
+- **Decisão de design (híbrido):**
+  - **launchd às 02:00** → roda o pipeline puro (01 → 02 → fundir → 03 → 04) nos pendentes, sem timeout, sem app aberto
+  - **OpenWork sob demanda** → revisão, ajustes, re-processamento com outro modelo (camada agêntica preservada quando o usuário quiser)
+- **Pré-requisito (bloqueador):** testar a aplicação em uso real até confiar no pipeline sem supervisão — o usuário decidiu **não implementar agora**.
+- **Escopo (quando implementar):**
+  - Script `07_processar_pendentes.py` — pipeline puro em lote (reusa 01-04 + fundir)
+  - Arquivo `launchd` `.plist` (com.armel.gravador-processar.plist) com log em `/tmp/`
+  - `launchctl load` + verificação de execução
+  - Manter `06_pendentes.py` como fonte de verdade dos pendentes
+- **Critérios de aceite (futuros):**
+  - Lote noturno processa pendentes sem intervenção
+  - Logs permitem diagnóstico de falhas
+  - Notas geradas idênticas às do processamento manual (mesmo pipeline)
+- **Notas:** a camada agêntica foi essencial na fase de desenvolvimento (diagnóstico de token, safe_globals, calibração de limiar de fusão) — mas o fluxo normal é determinístico e não precisa dela. A automação do OpenWork (R-006) permanece desativada.
+
+---
+
 ### R-007 — Map-reduce na geração de notas (acelerar LLM em reuniões longas)
 - **Prioridade:** 🔴 Alta
 - **Status:** ✅ Concluída
@@ -117,6 +139,7 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 | Data | Task | Ação |
 |---|---|---|
+| 2026-09-10 | R-008 | Criada (solução híbrida launchd + OpenWork — planejada, aguardando validação em uso real) |
 | 2026-09-10 | R-007 | ✅ Concluída (map-reduce: 26min → 3.5min, -87%) |
 | 2026-09-10 | R-007 | Criada e iniciada (map-reduce nas notas) |
 | 2026-09-10 | R-006 | Criada (processamento automático em lote diário) |
