@@ -38,8 +38,8 @@ def load_config() -> dict:
 
 
 app = FastAPI()
-# O AudioStore cria 99_material/audio/<session_id>/ com bruto/ e o wav mixado.
-AUDIO_DIR = Path(load_config()["caminhos"]["material_dir"]) / "audio"
+# O AudioStore cria 99_material/<evento>/audio/ com bruto/ e o wav mixado.
+AUDIO_DIR = Path(load_config()["caminhos"]["material_dir"])
 
 
 @app.get("/health")

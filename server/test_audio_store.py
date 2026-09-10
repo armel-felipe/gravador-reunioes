@@ -29,9 +29,9 @@ def test_start_append_finish_creates_mixed_wav():
         assert wav_path.endswith(".wav")
         assert os.path.exists(wav_path)
         assert os.path.getsize(wav_path) > 100
-        # Estrutura nova: tmp/<session_id>/bruto/*.pcm e tmp/<session_id>/<session_id>.wav
-        assert os.path.exists(os.path.join(tmp, session_id, "bruto", f"{session_id}_tab.pcm"))
-        assert os.path.exists(os.path.join(tmp, session_id, "bruto", f"{session_id}_mic.pcm"))
+        # Estrutura nova: tmp/<session_id>/audio/bruto/*.pcm e tmp/<session_id>/audio/<session_id>.wav
+        assert os.path.exists(os.path.join(tmp, session_id, "audio", "bruto", f"{session_id}_tab.pcm"))
+        assert os.path.exists(os.path.join(tmp, session_id, "audio", "bruto", f"{session_id}_mic.pcm"))
         # wav decodificável: pcm_s16le, 16000 Hz, mono
         probe = subprocess.run(
             ["ffprobe", "-v", "error", "-select_streams", "a:0",
