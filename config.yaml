@@ -1,11 +1,12 @@
 # Configuração central do gravador de reuniões
 whisper:
-  model: "large-v3"        # large-v3 | medium (trocar se lento)
+  model: "medium"         # large-v3 | medium (trocar se lento)
   device: "auto"           # auto | cpu | cuda | mps
   compute_type: "auto"     # auto | int8 | float16
 
 diarizacao:
   model: "pyannote/speaker-diarization-3.1"
+  device: "auto"           # auto | cpu | mps | cuda (auto = mps no Apple Silicon, senão cpu)
   min_speakers: null       # null = automático
   max_speakers: null
 
