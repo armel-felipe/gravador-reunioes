@@ -26,7 +26,8 @@ async function getStreamIdComRetry(tabId) {
 
 async function showToaster(tabId) {
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "toaster:show" });
+    const { startTime } = await chrome.storage.session.get("startTime");
+    await chrome.tabs.sendMessage(tabId, { type: "toaster:show", startTime: startTime || Date.now() });
   } catch (e) {
     // aba sem content script (ex.: chrome://) — o popup continua sendo o controle
   }
@@ -92,7 +93,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "getState") {
-    getRecordingState().then((recording) => sendResponse({ recording }));
+    (async () => {
+      const recording = await getRecordingState();
+      const { startTime } = await chrome.storage.session.get("startTime");
+      sendResponse({ recording, startTime: recording ? startTime : null });
+    })();
     return true;
   }
 });

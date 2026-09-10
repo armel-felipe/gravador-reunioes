@@ -27,36 +27,33 @@
     chrome.runtime.sendMessage({ type: "stop" });
   });
 
-  function updateTimer() {
-    chrome.storage.session.get("startTime", ({ startTime }) => {
-      if (!startTime) return;
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
-      const s = String(elapsed % 60).padStart(2, "0");
-      timerEl.textContent = `${m}:${s}`;
-    });
-  }
+  // Content scripts NÃO têm acesso a chrome.storage.session (só popup/background).
+  // O estado vem do background via mensagens.
+  let startTime = null;
 
-  // Mostra/esconde conforme o estado de gravação
-  chrome.storage.session.onChanged.addListener((changes) => {
-    if (changes.recording) {
-      el.style.display = changes.recording.newValue ? "flex" : "none";
-      if (changes.recording.newValue) updateTimer();
-    }
-  });
+  function updateTimer() {
+    if (!startTime) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const s = String(elapsed % 60).padStart(2, "0");
+    timerEl.textContent = `${m}:${s}`;
+  }
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "toaster:show") {
+      startTime = msg.startTime || Date.now();
       el.style.display = "flex";
       updateTimer();
     } else if (msg.type === "toaster:hide") {
       el.style.display = "none";
+      startTime = null;
     }
   });
 
-  // Estado inicial (ex.: recarregou a página durante a gravação)
-  chrome.storage.session.get("recording", ({ recording }) => {
-    if (recording) {
+  // Estado inicial (ex.: página recarregou durante a gravação)
+  chrome.runtime.sendMessage({ type: "getState" }, (resp) => {
+    if (resp && resp.recording) {
+      startTime = resp.startTime || Date.now();
       el.style.display = "flex";
       updateTimer();
     }
