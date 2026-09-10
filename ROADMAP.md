@@ -14,18 +14,23 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 ### R-006 — Processamento automático pós-gravação (lote diário)
 - **Prioridade:** 🟡 Média
-- **Status:** 🔨 Em andamento
+- **Status:** ❌ Cancelada (automação desativada em 2026-09-10)
 - **Criada em:** 2026-09-10
 - **Motivo:** Hoje o processamento é manual ("processa a gravação" no chat). Automatizar em lote diário, preservando a camada agêntica.
 - **Escopo:**
   - Script `06_pendentes.py` — lista eventos com áudio mas sem notas (marcador de processado = `notas/<evento>.md`) ✅
   - Skill `processar-gravacao` atualizada para processar pendentes em lote ✅
-  - Automação diária (horário a definir) que roda a skill com "processa as pendentes"
+  - Automação diária (horário a definir) que roda a skill com "processa as pendentes" ✅ (criada e testada)
+- **Motivo do cancelamento:**
+  - O limite de **15 min por execução** do OpenWork (fixo, não configurável) não comporta a transcrição local: Whisper `medium` roda a ~0,5x tempo real em CPU (27 min de áudio ≈ 13 min só de transcrição; com diarização + notas, ~16 min no total) — a automação estourava o timeout.
+  - Com `large-v3` (0,88x tempo real) qualquer áudio de 27+ min estourava com folga.
+  - O faster-whisper (CTranslate2) **não suporta MPS** — a transcrição roda em CPU; o MPS só acelera a diarização (pyannote).
+- **Decisão:** processamento **manual sob demanda** no chat (skill `processar-gravacao` + `06_pendentes.py`). A automação foi desativada (estado `inactive`), preservando o histórico de execuções.
 - **Limitações conhecidas:**
   - Automação Desktop roda apenas com o OpenWork aberto e conectado
   - Processamento é local (Whisper/pyannote) — não há runner cloud
   - Reprocessamento: eventos sem notas são retentados automaticamente; eventos com notas são pulados
-- **Critérios de aceite:** automação diária processa só os pendentes; eventos já processados são pulados.
+- **Critérios de aceite (não atingidos):** automação diária processa só os pendentes; eventos já processados são pulados.
 
 ---
 
@@ -92,6 +97,7 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 | Data | Task | Ação |
 |---|---|---|
+| 2026-09-10 | R-006 | ❌ Cancelada (automação desativada — limite de 15 min não comporta transcrição local; processamento volta a ser manual) |
 | 2026-09-10 | R-006 | Criada (processamento automático em lote diário) |
 | 2026-09-09 | R-001 | Criada e iniciada (migração AudioWorklet) |
 | 2026-09-09 | R-001 | ✅ Concluída (implementada, validada; aguarda confirmação manual no Chrome) |

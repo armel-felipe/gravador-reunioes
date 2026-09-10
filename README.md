@@ -38,7 +38,7 @@ projeto/
 │   ├── 03_alinhar.py       ← cruza transcrição + diarização → .md diarizado
 │   ├── 04_notas.py         ← Ollama: transcrição → resumo + plano de ação
 │   ├── 05_limpar.py        ← apaga áudios com mais de 30 dias
-│   ├── 06_pendentes.py     ← lista eventos com áudio mas sem notas (para o lote diário)
+│   ├── 06_pendentes.py     ← lista eventos com áudio mas sem notas (pendentes)
 │   ├── common.py           ← config + caminhos compartilhados
 │   ├── alinhar.py          ← lógica de alinhamento (testável)
 │   ├── notas.py            ← lógica de notas (testável)
@@ -75,7 +75,7 @@ projeto/
 | **Conta HuggingFace** | huggingface.co | Token para baixar modelos de diarização (grátis) |
 | **OpenWork Desktop** (ou OpenCode CLI) | openworklabs.com | Orquestração agêntica: skills, processamento e automações |
 
-> **Sobre o OpenWork/OpenCode:** o processamento (transcrição → diarização → notas) é orquestrado pelo **agente** — as skills `processar-gravacao` e `limpar-material` vivem em `.opencode/skills/` e são executadas pelo OpenWork Desktop (ou OpenCode CLI) com acesso a este workspace. **As automações diárias (02:00 e 08:00) rodam apenas com o OpenWork Desktop aberto e conectado** — o processamento é local (Whisper/pyannote), então não há runner cloud. Se o app estiver fechado no horário, basta pedir *"processa as pendentes"* / *"limpa o material"* no chat.
+> **Sobre o OpenWork/OpenCode:** o processamento (transcrição → diarização → notas) é orquestrado pelo **agente** — as skills `processar-gravacao` e `limpar-material` vivem em `.opencode/skills/` e são executadas pelo OpenWork Desktop (ou OpenCode CLI) com acesso a este workspace. **A automação de limpeza (08:00) roda apenas com o OpenWork Desktop aberto e conectado** — o processamento é local (Whisper/pyannote), então não há runner cloud. Se o app estiver fechado no horário, basta pedir *"limpa o material"* no chat. O processamento de gravações é **manual** (pedido no chat) — a automação de lote diário (02:00) foi desativada porque o limite de 15 min por execução não comporta a transcrição local (ver seção *Processamento*).
 
 ### Passo a passo
 
@@ -137,12 +137,12 @@ O agente roda o pipeline completo e salva, dentro da pasta do evento:
 
 Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"*.
 
-### 3. Processamento automático (lote diário)
+### 3. Processamento (manual)
 
-- **Automação "Processar gravações pendentes — 02:00"** (diária): processa automaticamente todos os eventos com áudio mas **sem notas** geradas.
-- **Marcador de processado:** um evento é considerado processado quando tem `notas/<evento>.md`. Eventos já processados são **pulados**; falhas no meio do pipeline são **retentadas** no próximo lote.
+- **O processamento é manual:** peça *"processa a gravação de hoje"*, *"processa a última gravação"*, *"processa <nome>"* ou *"processa as pendentes"* no chat do OpenWork.
+- **Marcador de processado:** um evento é considerado processado quando tem `notas/<evento>.md`. Eventos já processados são **pulados**; falhas no meio do pipeline são **retentadas** na próxima execução.
 - **Para listar os pendentes manualmente:** `.venv/bin/python scripts/06_pendentes.py`
-- ⚠️ **Limitação:** a automação roda apenas com o OpenWork aberto e conectado (o processamento é local). Se o app estiver fechado no horário, peça *"processa as pendentes"* no chat.
+- ⚠️ **Automação desativada:** a automação diária de processamento (02:00) foi **desativada** — o limite de 15 min por execução do OpenWork não comporta a transcrição local (Whisper `medium` roda a ~0,5x tempo real em CPU; um áudio de 27 min leva ~13 min só na transcrição). O processamento é feito sob demanda no chat.
 
 ### 4. Limpar material antigo
 
@@ -151,21 +151,22 @@ Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"
 
 ---
 
-## 🤖 Fluxo atual (com automações)
+## 🤖 Fluxo atual (automações)
 
 | Horário | Automação | O que faz |
 |---|---|---|
-| **02:00** | Processar gravações pendentes | Processa eventos com áudio mas **sem notas** (marcador = `notas/<evento>.md`); processados são pulados, falhas são retentadas |
 | **08:00** | Limpeza de material | Apaga a pasta `audio/` de eventos com mais de 30 dias, mantendo transcrições e notas |
+
+> **Processamento de gravações:** manual, sob demanda no chat (a automação de lote diário das 02:00 foi desativada — ver seção *Processamento*).
 
 **Fluxo do dia a dia:**
 1. `./start.sh` → servidor de pé
 2. Gravar reuniões/aulas durante o dia (extensão + toaster)
-3. **02:00** — processamento automático das pendentes
+3. Pedir *"processa as pendentes"* no chat (ou processar cada gravação individualmente)
 4. **08:00** — limpeza automática dos áudios antigos
-5. De manhã, as notas estão em `99_material/<evento>/notas/`
+5. As notas ficam em `99_material/<evento>/notas/`
 
-> ⚠️ **Importante:** as automações rodam apenas com o **OpenWork Desktop aberto e conectado** (o processamento é local). Se o app estiver fechado no horário, a execução é perdida — mas você pode pedir *"processa as pendentes"* / *"limpa o material"* no chat a qualquer momento.
+> ⚠️ **Importante:** a automação de limpeza roda apenas com o **OpenWork Desktop aberto e conectado** (o processamento é local). Se o app estiver fechado no horário, a execução é perdida — mas você pode pedir *"limpa o material"* no chat a qualquer momento.
 
 ---
 
@@ -187,7 +188,7 @@ Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"
 
 **Modelos do Ollama (locais, `ollama list`):** `qwen3.6:35b-mlx`, `gemma4:26b-mlx`, `qwen3.8:27b-mlx`, `nemotron-3.5-lightning:30b-a3b`, `ornith-1.5:35b` — selecione em `config.yaml` (um descomentado por vez).
 
-**Modelos do Whisper:** `large-v3` (padrão, melhor qualidade) ou `medium` (mais rápido) — em `config.yaml`.
+**Modelos do Whisper:** `medium` (padrão atual, mais rápido e estável) ou `large-v3` (melhor qualidade, ~2x mais lento) — em `config.yaml`.
 
 ---
 
@@ -195,7 +196,7 @@ Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"
 
 | Chave | Descrição | Padrão |
 |---|---|---|
-| `whisper.model` | Modelo do Whisper (`large-v3` melhor qualidade, `medium` mais rápido) | `large-v3` |
+| `whisper.model` | Modelo do Whisper (`medium` mais rápido e estável, `large-v3` melhor qualidade) | `medium` |
 | `diarizacao.min_speakers` / `max_speakers` | Limites de falantes (null = automático) | `null` |
 | `ollama.provider` | `local` ou `cloud` | `local` |
 | `ollama.local_model` | Modelo local do Ollama | `qwen3.6:35b-mlx` |
