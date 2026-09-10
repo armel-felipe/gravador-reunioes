@@ -28,6 +28,7 @@ Quando o usuário pedir para processar uma gravação de reunião/aula capturada
    ```bash
    .venv/bin/python scripts/01_transcrever.py <nome_base>
    .venv/bin/python scripts/02_diarizar.py <nome_base>
+   .venv/bin/python scripts/fundir.py <nome_base>   # funde speakers por similaridade de voz
    .venv/bin/python scripts/03_alinhar.py <nome_base>
    .venv/bin/python scripts/04_notas.py <nome_base>
    ```
