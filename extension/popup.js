@@ -52,11 +52,22 @@ toggleBtn.addEventListener("click", async () => {
     // corretamente. No offscreen (página oculta) o prompt é dispensado
     // silenciosamente (NotAllowedError: Permission dismissed).
     if (comMicCheckbox.checked) {
+      let estado = "prompt";
+      try {
+        const status = await navigator.permissions.query({ name: "microphone" });
+        estado = status.state;
+      } catch (e) {
+        // API não suportada — segue o fluxo normal
+      }
+      if (estado === "denied") {
+        statusDiv.textContent = "Microfone bloqueado. Clique no 🔒 da barra de endereço → Microfone → Permitir.";
+        return;
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach((t) => t.stop()); // só para conceder a permissão
       } catch (e) {
-        statusDiv.textContent = "Permissão de microfone negada.";
+        statusDiv.textContent = "Permissão de microfone negada. Clique no 🔒 da barra de endereço → Microfone → Permitir.";
         return;
       }
     }
