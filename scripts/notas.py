@@ -60,8 +60,7 @@ def main(nome_base: str):
     transcricao = paths["transcricao_md"].read_text(encoding="utf-8")
     prompt = montar_prompt(transcricao)
     texto = chamar_ollama(cfg, prompt)
-    notas_dir = Path(cfg["caminhos"]["notas_dir"])
-    notas_dir.mkdir(parents=True, exist_ok=True)
-    destino = notas_dir / f"{nome_base}.md"
+    destino = paths["notas_md"]
+    destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(f"# Notas — {nome_base}\n\n{texto}\n", encoding="utf-8")
     print(f"Notas → {destino}")

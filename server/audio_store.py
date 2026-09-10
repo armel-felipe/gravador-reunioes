@@ -5,9 +5,9 @@ from pathlib import Path
 
 class AudioStore:
     def __init__(self, base_dir: str):
+        # base_dir = 99_material/audio (raiz de áudios); cada sessão cria
+        # base_dir/<session_id>/ com bruto/ e o wav mixado.
         self.base_dir = Path(base_dir)
-        self.bruto_dir = self.base_dir / "bruto"
-        self.bruto_dir.mkdir(parents=True, exist_ok=True)
         self.session_id = None
         self.sample_rate = 48000
         self._tab_path = None
@@ -22,6 +22,9 @@ class AudioStore:
             self._mic_fh.close()
         self.session_id = session_id
         self.sample_rate = int(sample_rate)
+        # Estrutura: 99_material/audio/<session_id>/bruto/ e <session_id>.wav
+        self.bruto_dir = self.base_dir / session_id / "bruto"
+        self.bruto_dir.mkdir(parents=True, exist_ok=True)
         self._tab_path = self.bruto_dir / f"{session_id}_tab.pcm"
         self._mic_path = self.bruto_dir / f"{session_id}_mic.pcm"
         self._tab_fh = open(self._tab_path, "wb")
@@ -49,7 +52,7 @@ class AudioStore:
             self._mic_fh.close()
         self._tab_fh = None
         self._mic_fh = None
-        wav_path = self.base_dir / f"{self.session_id}.wav"
+        wav_path = self.base_dir / self.session_id / f"{self.session_id}.wav"
         # Se os brutos não existem (ex.: limpeza manual), não há o que mixar.
         if not self._tab_path.exists() and not self._mic_path.exists():
             self.session_id = None

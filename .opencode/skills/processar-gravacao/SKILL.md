@@ -11,8 +11,9 @@ Quando o usuário pedir para processar uma gravação de reunião/aula capturada
 ## Passos
 
 1. **Identificar o áudio:**
-   - Se o usuário deu um nome, use `99_material/audio/<nome>.wav`.
-   - Se pediu "a última", liste `99_material/audio/*.wav` e use o mais recente (por mtime).
+   - Cada gravação é um evento: `99_material/<nome_base>/audio/<nome_base>.wav` (nome_base = `YYYY_MM_DD_HH_MM_<nome>`).
+   - Se o usuário deu um nome, use `99_material/audio/<nome_base>/<nome_base>.wav` — na prática, procure o evento em `99_material/` cujo nome contenha o que o usuário citou.
+   - Se pediu "a última", liste os eventos `99_material/*/audio/*.wav` e use o mais recente (por mtime).
    - Se não houver áudio, avise e encerre.
 
 2. **Rodar o pipeline** (da raiz do projeto, com o venv):
@@ -22,7 +23,7 @@ Quando o usuário pedir para processar uma gravação de reunião/aula capturada
    .venv/bin/python scripts/03_alinhar.py <nome_base>
    .venv/bin/python scripts/04_notas.py <nome_base>
    ```
-   - Inspecione cada saída intermediária em `99_material/transcricoes/_tmp/` antes de seguir.
+   - Inspecione cada saída intermediária em `99_material/<nome_base>/transcricoes/_tmp/` antes de seguir.
    - Se o usuário pediu outro modelo ("usa o gemma4"), edite `config.yaml` (ollama.local_model) antes do passo 04 e restaure depois.
 
 3. **Verificar qualidade:**
