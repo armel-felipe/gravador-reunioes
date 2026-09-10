@@ -3,6 +3,13 @@ const toggleBtn = document.getElementById("toggle");
 const statusDiv = document.getElementById("status");
 const timerDiv = document.getElementById("timer");
 const comMicCheckbox = document.getElementById("comMic");
+const permMicBtn = document.getElementById("permMic");
+
+// Abre a página de permissão de microfone (aba dedicada — o prompt não é
+// dispensado, diferente do popup que fecha ao perder o foco).
+permMicBtn.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("mic.html") });
+});
 
 let recording = false;
 let timerInterval = null;

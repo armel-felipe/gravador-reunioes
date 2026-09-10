@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Permissão de microfone</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; background: #1e1e1e; color: #fff; text-align: center;
+    }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    p { color: #bbb; max-width: 420px; margin-bottom: 24px; }
+    button {
+      background: #ff3b30; color: #fff; border: none;
+      padding: 12px 28px; border-radius: 8px; cursor: pointer; font-size: 16px;
+    }
+    button:hover { background: #d63027; }
+    #status { margin-top: 16px; font-size: 14px; color: #4caf50; min-height: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Permissão de microfone</h1>
+  <p>O Gravador de Reuniões precisa do seu microfone para incluir sua voz na gravação.
+     Clique no botão e escolha <strong>Permitir</strong> no prompt do Chrome.</p>
+  <button id="pedir">Permitir microfone</button>
+  <div id="status"></div>
+  <script src="mic.js"></script>
+</body>
+</html>
