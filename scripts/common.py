@@ -39,6 +39,7 @@ def audio_paths(nome_base: str) -> dict:
         "wav": wav,
         "transcricao_json": tmp / f"{nome_base}_transcricao.json",
         "diarizacao_json": tmp / f"{nome_base}_diarizacao.json",
+        "diarizacao_fundida_json": tmp / f"{nome_base}_diarizacao_fundida.json",
         "transcricao_md": trans / f"{nome_base}.md",
         "notas_md": notas / f"{nome_base}.md",
     }

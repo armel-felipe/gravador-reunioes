@@ -13,7 +13,11 @@ def main(nome_base: str):
     paths = audio_paths(nome_base)
     with open(paths["transcricao_json"], encoding="utf-8") as f:
         transcricao = json.load(f)
-    with open(paths["diarizacao_json"], encoding="utf-8") as f:
+    # Usa a diarização fundida (por similaridade de voz) se existir
+    diarizacao_path = paths["diarizacao_fundida_json"]
+    if not diarizacao_path.exists():
+        diarizacao_path = paths["diarizacao_json"]
+    with open(diarizacao_path, encoding="utf-8") as f:
         diarizacao = json.load(f)
     falas = alinhar_falas(transcricao, diarizacao)
     linhas = []

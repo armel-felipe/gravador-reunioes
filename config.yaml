@@ -9,6 +9,7 @@ diarizacao:
   device: "auto"           # auto | cpu | mps | cuda (auto = mps no Apple Silicon, senão cpu)
   min_speakers: null       # null = automático
   max_speakers: null
+  limiar_fusao: 0.5        # similaridade mínima (cosine) para fundir speakers (0.0-1.0)
 
 ollama:
   # provider: "local"        # local | cloud
