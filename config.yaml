@@ -10,11 +10,12 @@ diarizacao:
   max_speakers: null
 
 ollama:
-  provider: "local"        # local | cloud
+  # provider: "local"        # local | cloud
+  provider: "cloud"        # local | cloud
   # Modelos locais disponíveis (ollama list) — descomente UM para usar:
-  # local_model: "gemma4:26b-mlx"
+  local_model: "gemma4:26b-mlx"
   # local_model: "nemotron-3.5-lightning:30b-a3b"
-  local_model: "qwen3.6:35b-mlx"
+  # local_model: "qwen3.6:35b-mlx"
   # local_model: "qwen3.8:27b-mlx"
   # local_model: "ornith-1.5:35b"
   cloud_model: "glm-5.3:cloud"
