@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+.env
 99_material/audio/*.wav
 99_material/audio/*.webm
 99_material/audio/bruto/*

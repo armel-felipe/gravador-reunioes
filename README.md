@@ -23,7 +23,7 @@ scripts/     → pipeline: 01 transcrever, 02 diarizar, 03 alinhar, 04 notas, 05
 ## Configuração
 
 - `config.yaml`: modelo do Whisper, modelo do Ollama (local/cloud), caminhos, retenção.
-- Diarização exige token do HuggingFace (uma vez): criar conta em huggingface.co, aceitar os termos de `pyannote/speaker-diarization-3.1` e salvar o token em `~/.cache/huggingface/token`.
+- Diarização exige token do HuggingFace (uma vez): criar conta em huggingface.co, aceitar os termos de `pyannote/speaker-diarization-3.1` e `pyannote/segmentation-3.0`, criar um token Read em huggingface.co/settings/tokens e salvá-lo no arquivo `.env` (copie de `.env.example`).
 
 ## Dependências
 
