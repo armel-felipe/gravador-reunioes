@@ -15,11 +15,13 @@ function connectWs() {
   });
 }
 
-function sendAudio(channel, stream) {
+function sendAudio(channel, stream, volume) {
   const source = ctx.createMediaStreamSource(stream);
   const processor = ctx.createScriptProcessor(4096, 1, 1);
   const gain = ctx.createGain();
-  gain.gain.value = 0;
+  // tab: volume 1.0 (usuário continua ouvindo a reunião — o tabCapture silencia a aba)
+  // mic: volume 0 (evita feedback do microfone com os alto-falantes)
+  gain.gain.value = volume;
   source.connect(processor);
   processor.connect(gain);
   gain.connect(ctx.destination);
@@ -45,11 +47,11 @@ async function startRecording(nome, streamId, comMic) {
     tabStream = await navigator.mediaDevices.getUserMedia({
       audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: streamId } }
     });
-    sendAudio("tab", tabStream);
+    sendAudio("tab", tabStream, 1.0);
 
     if (comMic) {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      sendAudio("mic", micStream);
+      sendAudio("mic", micStream, 0);
     }
     return { ok: true };
   } catch (e) {
