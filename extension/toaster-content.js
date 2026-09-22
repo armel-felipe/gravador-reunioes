@@ -1,8 +1,10 @@
 // toaster-content.js — injeta o controle flutuante de gravação DENTRO da página
 // (canto inferior direito, como um toast). Comunicado pelo background.
 (() => {
-  if (window.__gravadorToaster) return; // evita duplicação
-  window.__gravadorToaster = true;
+  // Substitui um toaster órfão deixado por uma versão anterior da extensão.
+  // Isso é necessário porque o contexto do content script antigo pode ter
+  // sido invalidado após o reload da extensão.
+  prepararToaster(document, window);
 
   const el = document.createElement("div");
   el.id = "gravador-toaster";
@@ -35,11 +37,25 @@
     window.__gravadorToaster = false;
   }
 
-  stopBtn.addEventListener("click", () => {
+  let parando = false;
+  stopBtn.addEventListener("click", async () => {
+    if (parando) return;
+    parando = true;
+    stopBtn.disabled = true;
+    stopBtn.textContent = "Parando…";
     try {
-      chrome.runtime.sendMessage({ type: "stop" });
+      const resposta = await chrome.runtime.sendMessage({ type: "stop" });
+      if (resposta && resposta.ok === false) {
+        throw new Error(resposta.error || "não foi possível parar a gravação");
+      }
+      return;
     } catch (e) {
       if (contextoInvalido(e)) limparOrfao();
+      else {
+        parando = false;
+        stopBtn.disabled = false;
+        stopBtn.textContent = "Parar";
+      }
     }
   });
 

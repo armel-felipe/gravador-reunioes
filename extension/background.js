@@ -35,7 +35,7 @@ async function showToaster(tabId) {
       // Injeta na hora e tenta de novo.
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: ["toaster-content.js"]
+        files: ["toaster-lifecycle.js", "toaster-content.js"]
       });
       await chrome.tabs.sendMessage(tabId, msg);
     }
@@ -57,6 +57,13 @@ async function hideToastersEmTodasAsAbas() {
   await Promise.allSettled(tabs.map((tab) => hideToaster(tab.id)));
 }
 
+async function restaurarToasterSeGravando() {
+  const { recording, recordingTabId } = await chrome.storage.session.get(["recording", "recordingTabId"]);
+  if (recording && recordingTabId !== undefined) {
+    await showToaster(recordingTabId);
+  }
+}
+
 async function pararOffscreen() {
   if (!(await chrome.offscreen.hasDocument())) return;
   try {
@@ -76,6 +83,14 @@ async function getRecordingState() {
   }
   return true;
 }
+
+chrome.runtime.onInstalled.addListener(() => {
+  restaurarToasterSeGravando().catch(() => {});
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  restaurarToasterSeGravando().catch(() => {});
+});
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "start") {

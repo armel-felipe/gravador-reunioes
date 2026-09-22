@@ -95,10 +95,16 @@ async function startRecording(nome, streamId, comMic) {
   }
 }
 
-function stopRecording() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: "end" }));
-    ws.close();
+async function stopRecording() {
+  const currentWs = ws;
+  if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+    try {
+      await aguardarEncerramento(currentWs);
+    } catch (e) {
+      // O servidor ainda salva o que recebeu quando a conexão cai.
+    } finally {
+      currentWs.close();
+    }
   }
   if (tabStream) tabStream.getTracks().forEach((t) => t.stop());
   if (micStream) micStream.getTracks().forEach((t) => t.stop());
@@ -119,6 +125,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.type === "stop") {
-    sendResponse(stopRecording());
+    stopRecording().then(sendResponse).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
   }
 });

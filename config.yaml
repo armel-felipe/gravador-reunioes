@@ -14,12 +14,12 @@ diarizacao:
 ollama:
   provider: "local"        # local | cloud
   # provider: "cloud"        # local | cloud
-  # Modelos locais disponíveis (ollama list) — descomente UM para usar:
-  local_model: "gemma4:26b-mlx"
-  # local_model: "nemotron-3.5-lightning:30b-a3b"
-  # local_model: "qwen3.6:35b-mlx"
-  # local_model: "qwen3.8:27b-mlx"
-  # local_model: "ornith-1.5:35b"
+  # Modelos locais disponíveis (ollama list):
+  # gemma4:26b-mlx
+  # qwen3.6:35b-a3b-q4_K_M
+  # qwen3.8:27b-mlx
+  # ornith-1.5:35b
+  local_model: "qwen3.6:35b-a3b-q4_K_M"
   cloud_model: "glm-5.3-flash:cloud"
   cloud_base_url: "https://ollama.com"       # base SEM /v1 (ex.: https://ollama.com); o código adiciona /v1/chat/completions
   cloud_api_key_env: "LPR_BZ685_OLLAMA_API_KEY"  # nome da env var com a chave

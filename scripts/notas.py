@@ -4,18 +4,25 @@ import re
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 
 from common import load_config, audio_paths
+
+ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / ".env", override=False)
 
 # Configuração do map-reduce (em minutos)
 BLOCO_MINUTOS = 10
 OVERLAP_MINUTOS = 2
 
 REGRAS_QUALIDADE = """Regras de qualidade:
-- Preserve nomes, empresas, números, datas e decisões presentes no texto.
+- Preserve nomes, empresas, números, datas e decisões presentes no texto, além de exemplos, instituições, valores e referências.
+- Mantenha todos os tópicos discutidos, mesmo que pareçam secundários; agrupe apenas quando falarem do mesmo assunto.
+- Dê contexto suficiente para que cada tópico seja entendido por alguém que não ouviu a reunião: explique o ponto levantado, os motivos, exemplos, consequências e relações mencionados no texto, sem repetir a transcrição inteira.
 - Não invente informações nem transforme hipótese em fato.
-- Mantenha ações, responsáveis e prazos quando estiverem explícitos.
-- Seja conciso, priorizando detalhes específicos e úteis para a tomada de decisão."""
+- Registre decisões, ações, responsáveis e prazos somente quando estiverem explicitamente confirmados no texto. Sugestões, possibilidades, recomendações didáticas e assuntos a investigar não são ações ou decisões tomadas.
+- Não corrija, complete ou substitua nomes próprios, siglas, termos técnicos ou conceitos que pareçam erro do reconhecimento de voz. Preserve a forma transcrita e, se a incerteza for relevante, marque [termo incerto na transcrição].
+- "Conciso" significa eliminar redundância e repetição, não omitir detalhe relevante."""
 
 PROMPT = """Você é um assistente que transforma transcrições de reuniões em notas estruturadas em português.
 
@@ -25,7 +32,7 @@ Transcrição:
 {regras}
 
 Gere:
-1. **Resumo executivo** (máx. 150 palavras)
+1. **Resumo executivo** (máx. 250 palavras)
 2. **Tópicos principais** (lista)
 3. **Decisões tomadas** (lista; se não houver, diga "Nenhuma decisão explícita")
 4. **Plano de ação** (tabela: Ação | Responsável | Prazo — use "—" quando não citado)
@@ -40,7 +47,7 @@ Trecho (parte {indice} de {total}):
 {regras}
 
 Gere:
-1. **Resumo do trecho** (máx. 100 palavras)
+1. **Resumo do trecho** (máx. 200 palavras)
 2. **Tópicos principais** (lista)
 3. **Decisões tomadas** (lista; se não houver, diga "Nenhuma decisão explícita")
 4. **Plano de ação** (tabela: Ação | Responsável | Prazo — use "—" quando não citado)
@@ -55,7 +62,7 @@ Resumos parciais (cada um cobre um trecho da reunião, com sobreposição de 2 m
 {regras}
 
 Consolide em:
-1. **Resumo executivo** (máx. 200 palavras) — visão geral da reunião inteira
+1. **Resumo executivo** (máx. 350 palavras) — visão geral da reunião inteira
 2. **Tópicos principais** (lista consolidada, sem duplicatas)
 3. **Decisões tomadas** (lista consolidada; se não houver, diga "Nenhuma decisão explícita")
 4. **Plano de ação** (tabela: Ação | Responsável | Prazo — use "—" quando não citado)

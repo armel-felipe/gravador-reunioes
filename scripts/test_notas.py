@@ -37,6 +37,18 @@ def test_prompts_preservam_fatos_e_evitem_invencoes():
         assert "Não invente informações" in prompt
 
 
+def test_prompts_exigem_contexto_e_rastreabilidade():
+    prompts = [
+        montar_prompt("transcrição"),
+        montar_prompt_map("trecho", 1, 2),
+        montar_prompt_reduce("resumo"),
+    ]
+    for prompt in prompts:
+        assert "contexto suficiente" in prompt.lower()
+        assert "somente quando estiverem explicitamente" in prompt.lower()
+        assert "não corrija" in prompt.lower()
+
+
 def test_dividir_em_blocos_curto_retorna_um_bloco():
     transcricao = "**[00:00:00] SPEAKER_00:** fala curta"
     blocos = dividir_em_blocos(transcricao, bloco_min=10, overlap_min=2)
