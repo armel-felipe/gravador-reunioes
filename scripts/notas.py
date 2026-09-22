@@ -11,10 +11,18 @@ from common import load_config, audio_paths
 BLOCO_MINUTOS = 10
 OVERLAP_MINUTOS = 2
 
+REGRAS_QUALIDADE = """Regras de qualidade:
+- Preserve nomes, empresas, números, datas e decisões presentes no texto.
+- Não invente informações nem transforme hipótese em fato.
+- Mantenha ações, responsáveis e prazos quando estiverem explícitos.
+- Seja conciso, priorizando detalhes específicos e úteis para a tomada de decisão."""
+
 PROMPT = """Você é um assistente que transforma transcrições de reuniões em notas estruturadas em português.
 
 Transcrição:
 {transcricao}
+
+{regras}
 
 Gere:
 1. **Resumo executivo** (máx. 150 palavras)
@@ -29,6 +37,8 @@ PROMPT_MAP = """Você é um assistente que transforma um TRECHO de transcrição
 Trecho (parte {indice} de {total}):
 {trecho}
 
+{regras}
+
 Gere:
 1. **Resumo do trecho** (máx. 100 palavras)
 2. **Tópicos principais** (lista)
@@ -41,6 +51,8 @@ PROMPT_REDUCE = """Você é um assistente que consolida resumos parciais de uma 
 
 Resumos parciais (cada um cobre um trecho da reunião, com sobreposição de 2 min entre trechos):
 {resumos}
+
+{regras}
 
 Consolide em:
 1. **Resumo executivo** (máx. 200 palavras) — visão geral da reunião inteira
@@ -55,15 +67,20 @@ Regras:
 
 
 def montar_prompt(transcricao: str) -> str:
-    return PROMPT.replace("{transcricao}", transcricao)
+    return PROMPT.replace("{transcricao}", transcricao).replace("{regras}", REGRAS_QUALIDADE)
 
 
 def montar_prompt_map(trecho: str, indice: int, total: int) -> str:
-    return PROMPT_MAP.replace("{trecho}", trecho).replace("{indice}", str(indice)).replace("{total}", str(total))
+    return (
+        PROMPT_MAP.replace("{trecho}", trecho)
+        .replace("{indice}", str(indice))
+        .replace("{total}", str(total))
+        .replace("{regras}", REGRAS_QUALIDADE)
+    )
 
 
 def montar_prompt_reduce(resumos: str) -> str:
-    return PROMPT_REDUCE.replace("{resumos}", resumos)
+    return PROMPT_REDUCE.replace("{resumos}", resumos).replace("{regras}", REGRAS_QUALIDADE)
 
 
 def dividir_em_blocos(transcricao: str, bloco_min: int = BLOCO_MINUTOS, overlap_min: int = OVERLAP_MINUTOS) -> list:

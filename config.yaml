@@ -12,15 +12,15 @@ diarizacao:
   limiar_fusao: 0.5        # similaridade mínima (cosine) para fundir speakers (0.0-1.0)
 
 ollama:
-  # provider: "local"        # local | cloud
-  provider: "cloud"        # local | cloud
+  provider: "local"        # local | cloud
+  # provider: "cloud"        # local | cloud
   # Modelos locais disponíveis (ollama list) — descomente UM para usar:
   local_model: "gemma4:26b-mlx"
   # local_model: "nemotron-3.5-lightning:30b-a3b"
   # local_model: "qwen3.6:35b-mlx"
   # local_model: "qwen3.8:27b-mlx"
   # local_model: "ornith-1.5:35b"
-  cloud_model: "glm-5.3:cloud"
+  cloud_model: "glm-5.3-flash:cloud"
   cloud_base_url: "https://ollama.com"       # base SEM /v1 (ex.: https://ollama.com); o código adiciona /v1/chat/completions
   cloud_api_key_env: "LPR_BZ685_OLLAMA_API_KEY"  # nome da env var com a chave
 

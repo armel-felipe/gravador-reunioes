@@ -12,6 +12,16 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 ## Tasks
 
+### R-009 — Prompt comum com preservação de fatos nas notas
+- **Prioridade:** 🟡 Média
+- **Status:** ✅ Concluída
+- **Criada em:** 2026-09-21
+- **Concluída em:** 2026-09-21
+- **Motivo:** O modelo local entregou notas mais concisas; era necessário assegurar que a concisão não removesse fatos relevantes.
+- **Implementação:** regras comuns aos prompts de resumo, map e reduce para preservar nomes, empresas, números, datas, decisões, responsáveis e prazos, sem inventar informações.
+- **Compatibilidade:** o mesmo prompt é usado pelos providers local e cloud.
+- **Validação:** 15 testes passando.
+
 ### R-008 — Solução híbrida de processamento noturno (launchd + OpenWork sob demanda)
 - **Prioridade:** 🟡 Média
 - **Status:** 📋 Planejada (não implementar até validar a aplicação em uso real)

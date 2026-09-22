@@ -1,6 +1,6 @@
 # Gravador de Reuniões
 
-Grava o áudio de reuniões e videoaulas no navegador (Google Meet, Teams web, Zoom web, YouTube), transcreve com **Whisper**, separa as vozes com **diarização (pyannote)** e gera **notas, resumo e plano de ação** com **Ollama** — tudo local, orquestrado pelo OpenWork.
+Grava o áudio de reuniões e videoaulas no navegador (Google Meet, Teams web, Zoom web, YouTube), transcreve com **Whisper**, separa as vozes com **diarização (pyannote)** e gera **notas, resumo e plano de ação** com **Ollama** — localmente por padrão, com opção de Ollama Cloud, orquestrado pelo OpenWork.
 
 > **Como funciona:** a extensão do Chrome captura o áudio da aba + seu microfone e envia para um servidor local. O processamento (transcrição → diarização → notas) é disparado por você no chat do OpenWork, usando skills e scripts — não é um pipeline automático.
 
@@ -45,6 +45,7 @@ projeto/
 │   ├── limpar.py           ← lógica de limpeza (testável)
 │   └── requirements.txt     ← dependências do pipeline
 ├── .opencode/skills/       ← skills do OpenWork (acionáveis no chat)
+│   ├── subir-servidor/     ← "sobe o servidor"
 │   ├── processar-gravacao/ ← "processa a gravação de hoje"
 │   └── limpar-material/    ← "limpa o material"
 ├── config.yaml             ← configuração central (modelos, caminhos, retenção)
@@ -75,7 +76,7 @@ projeto/
 | **Conta HuggingFace** | huggingface.co | Token para baixar modelos de diarização (grátis) |
 | **OpenWork Desktop** (ou OpenCode CLI) | openworklabs.com | Orquestração agêntica: skills, processamento e automações |
 
-> **Sobre o OpenWork/OpenCode:** o processamento (transcrição → diarização → notas) é orquestrado pelo **agente** — as skills `processar-gravacao` e `limpar-material` vivem em `.opencode/skills/` e são executadas pelo OpenWork Desktop (ou OpenCode CLI) com acesso a este workspace. **A automação de limpeza (08:00) roda apenas com o OpenWork Desktop aberto e conectado** — o processamento é local (Whisper/pyannote), então não há runner cloud. Se o app estiver fechado no horário, basta pedir *"limpa o material"* no chat. O processamento de gravações é **manual** (pedido no chat) — a automação de lote diário (02:00) foi desativada porque o limite de 15 min por execução não comporta a transcrição local (ver seção *Processamento*).
+> **Sobre o OpenWork/OpenCode:** o processamento (transcrição → diarização → notas) é orquestrado pelo **agente** — as skills `subir-servidor`, `processar-gravacao` e `limpar-material` vivem em `.opencode/skills/` e são executadas pelo OpenWork Desktop (ou OpenCode CLI) com acesso a este workspace. **A automação de limpeza (08:00) roda apenas com o OpenWork Desktop aberto e conectado** — o processamento é local (Whisper/pyannote), então não há runner cloud. Se o app estiver fechado no horário, basta pedir *"limpa o material"* no chat. O processamento de gravações é **manual** (pedido no chat) — a automação de lote diário (02:00) foi desativada porque o limite de 15 min por execução não comporta a transcrição local (ver seção *Processamento*).
 
 ### Passo a passo
 
@@ -109,7 +110,7 @@ curl http://127.0.0.1:8765/health
 # → {"status":"ok"}
 ```
 
-> **Nota sobre o Ollama:** o `config.yaml` usa `provider: local` por padrão (modelo `qwen3.6:35b-mlx`). Para usar outro modelo local, rode `ollama pull <modelo>` e ajuste `ollama.local_model` no `config.yaml`. Para usar **Ollama cloud**, mude `provider: cloud`, preencha `cloud_base_url` e defina a env var com sua API key (o nome da variável está em `ollama.cloud_api_key_env`).
+> **Nota sobre o Ollama:** o `config.yaml` usa `provider: local` por padrão, com o modelo `gemma4:26b-mlx`. Para usar outro modelo local, rode `ollama pull <modelo>` e ajuste `ollama.local_model`. Para usar **Ollama Cloud**, mude `provider` para `cloud`, configure `cloud_model` e defina a variável indicada em `ollama.cloud_api_key_env` no `.env`. Nesse modo, o conteúdo da transcrição é enviado ao endpoint configurado em `cloud_base_url`.
 
 ---
 
@@ -136,6 +137,8 @@ O agente roda o pipeline completo e salva, dentro da pasta do evento:
 - `99_material/<evento>/notas/<nome>.md` — resumo executivo, tópicos, decisões, plano de ação
 
 **Geração de notas com map-reduce:** reuniões longas são divididas em **blocos de ~10 min com 2 min de sobreposição** — cada bloco é resumido separadamente (map) e os resumos são consolidados no documento final (reduce). Isso reduz o tempo de processamento em **~87%** (26 min → 3,5 min numa reunião de 39 min) e **melhora a qualidade** (o modelo não perde detalhes do meio da reunião). Reuniões curtas (≤ 10 min) usam o prompt único direto, sem overhead.
+
+O mesmo prompt é usado nos modelos local e Cloud. Ele exige preservar nomes, empresas, números, datas, decisões, responsáveis e prazos, sem inventar informações, mantendo a saída concisa.
 
 Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"*.
 
@@ -201,9 +204,9 @@ Você também pode pedir para trocar o modelo na hora: *"usa o gemma4 desta vez"
 | `whisper.model` | Modelo do Whisper (`medium` mais rápido e estável, `large-v3` melhor qualidade) | `medium` |
 | `diarizacao.min_speakers` / `max_speakers` | Limites de falantes (null = automático) | `null` |
 | `ollama.provider` | `local` ou `cloud` | `local` |
-| `ollama.local_model` | Modelo local do Ollama | `qwen3.6:35b-mlx` |
-| `ollama.cloud_model` | Modelo na nuvem | `qwen3.6:35b-mlx` |
-| `ollama.cloud_base_url` | URL base da API cloud (sem `/v1`) | `https://ollama.com/api` |
+| `ollama.local_model` | Modelo local do Ollama | `gemma4:26b-mlx` |
+| `ollama.cloud_model` | Modelo na nuvem | `glm-5.3-flash:cloud` |
+| `ollama.cloud_base_url` | URL base da API Cloud (sem `/v1`) | `https://ollama.com` |
 | `ollama.cloud_api_key_env` | Nome da env var com a API key | `LPR_BZ685_OLLAMA_API_KEY` |
 | `limpeza.dias_retencao_audio` | Dias de retenção dos áudios | `30` |
 
@@ -223,7 +226,7 @@ Cobre: alinhamento de falas, geração de prompt de notas, limpeza de áudios an
 
 | Problema | Solução |
 |---|---|
-| Popup diz "Servidor offline" | Rode `./start.sh` e tente de novo |
+| Popup diz "Servidor offline" | Rode `./start.sh` — ou peça *"sobe o servidor"* no chat |
 | Diarização falha com erro de token | Confira o `.env` (HUGGINGFACE_TOKEN) e se aceitou os termos dos 2 modelos |
 | Whisper muito lento | Troque `whisper.model` para `medium` no `config.yaml` |
 | Notas falham (Ollama parado) | Rode `ollama serve` ou peça para usar Ollama cloud |

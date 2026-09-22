@@ -7,6 +7,7 @@ Este documento descreve **todos os scripts, skills e arquivos de configuração*
 ## 🧩 Skills do OpenWork (acionáveis no chat)
 
 As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando você pede algo no chat.
+A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a governança e a regra de execução estão em `AGENTS.md`.
 
 ### `processar-gravacao`
 **Acionada por:** "processa a gravação de hoje", "processa a última gravação", "processa <nome>", "gera notas da reunião"
@@ -21,6 +22,8 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 
 **Modelo:** usa o `ollama.local_model`/`ollama.cloud_model` do `config.yaml`. Você pode trocar na hora: *"usa o gemma4 desta vez"*.
 
+**Qualidade do prompt:** local e Cloud recebem o mesmo prompt. A geração deve preservar nomes, empresas, números, datas, decisões, responsáveis e prazos, sem inventar informações, com saída concisa.
+
 ---
 
 ### `limpar-material`
@@ -31,6 +34,17 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 2. Apaga a pasta `audio/` de eventos com mais de `limpeza.dias_retencao_audio` dias (padrão: 30)
 3. **Mantém** transcrições e notas de cada evento
 4. Reporta quantos arquivos foram apagados e o espaço liberado
+
+---
+
+### `subir-servidor`
+**Acionada por:** "sobe o servidor", "inicia o servidor", "liga o gravador"
+
+**O que faz:**
+1. Checa se já está no ar (`curl http://127.0.0.1:8765/health`) e evita subir duplicado
+2. Sobe o `./start.sh` **desacoplado da sessão** via `launchctl submit` (job `com.armel.gravador-servidor`) — sobrevive ao fechamento do terminal/app
+3. Confirma que o `/health` responde `{"status":"ok"}` e informa PID e log (`/tmp/gravador_server.log`)
+4. Para parar: `launchctl remove com.armel.gravador-servidor`
 
 ---
 
@@ -51,6 +65,12 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 - **Uso:** `.venv/bin/python scripts/02_diarizar.py <nome_base>`
 - **Nota:** na 1ª execução baixa os modelos (~1GB, uma única vez)
 
+### `fundir.py` — Fusão de speakers (embeddings de voz)
+- **Entrada:** `99_material/<evento>/transcricoes/_tmp/<evento>_diarizacao.json`
+- **Saída:** o mesmo JSON com os rótulos remapeados (ex.: 5 "Falantes" → 3)
+- **Lógica:** extrai o embedding médio de voz de cada speaker (até 20 segmentos mais longos, pyannote) e funde dois speakers apenas quando a similaridade cosine é ≥ 0,85 — sem heurística de duração/vizinhança
+- **Uso:** `.venv/bin/python scripts/fundir.py <nome_base>`
+
 ### `03_alinhar.py` — Alinhamento (transcrição × diarização)
 - **Entrada:** os dois JSONs acima
 - **Saída:** `99_material/<evento>/transcricoes/<evento>.md` (falas diarizadas com timestamps)
@@ -68,6 +88,11 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 - **Saída:** pasta `audio/` de eventos com mais de `limpeza.dias_retencao_audio` dias apagada (transcrições e notas mantidas)
 - **Uso:** `.venv/bin/python scripts/05_limpar.py`
 
+### `06_pendentes.py` — Lista de pendentes
+- **Entrada:** `99_material/`
+- **Saída:** eventos com áudio mas **sem** `notas/<evento>.md` (o arquivo de notas é o marcador de "processado")
+- **Uso:** `.venv/bin/python scripts/06_pendentes.py`
+
 ---
 
 ## 🧩 Módulos de apoio (`scripts/`)
@@ -78,9 +103,11 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 | `alinhar.py` | Lógica pura de alinhamento (testável, usada pelo `03_alinhar.py`) |
 | `notas.py` | Lógica de prompt e chamada ao Ollama (testável, usada pelo `04_notas.py`) |
 | `limpar.py` | Lógica pura de limpeza (testável, usada pelo `05_limpar.py`) |
+| `pendentes.py` | Lógica de listagem de pendentes (testável, usada pelo `06_pendentes.py`) |
 | `test_alinhar.py` | Testes do alinhamento |
 | `test_notas.py` | Testes do prompt de notas |
 | `test_limpar.py` | Testes da limpeza |
+| `test_pendentes.py` | Testes da listagem de pendentes |
 | `requirements.txt` | Dependências do pipeline (faster-whisper, pyannote, huggingface_hub, numpy, pyyaml, pytest) |
 
 ---
@@ -116,9 +143,11 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 
 | Arquivo | Função |
 |---|---|
+| `AGENTS.md` | Porta de entrada para agentes: governança das skills, regra de execução, servidor local e regras críticas |
 | `config.yaml` | Configuração central: modelo do Whisper, diarização, Ollama (local/cloud), caminhos, retenção de áudio |
 | `.env` (não versionado) | Token do HuggingFace (`HUGGINGFACE_TOKEN=`) — copie de `.env.example` |
 | `.env.example` | Modelo do `.env` com instruções |
+| `.opencode/skills/` | Skills operacionais acionáveis no chat (`subir-servidor`, `processar-gravacao`, `limpar-material`) |
 | `start.sh` | Sobe o servidor: cria o venv na 1ª vez, instala dependências (server + scripts), inicia uvicorn em `127.0.0.1:8765` |
 | `.gitignore` | Ignora `.env`, `.venv`, `99_material/` (conteúdo gerado) |
 | `99_material/` | Material gerado: um diretório por evento (`<evento>/audio/` com `bruto/`, `transcricoes/` com `_tmp/`, `notas/`) |
@@ -128,6 +157,9 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
 ## 🔄 Fluxo completo (visão geral)
 
 ```
+[Chat] "sobe o servidor" → skill subir-servidor → ./start.sh (launchd, 127.0.0.1:8765)
+    │
+    ▼
 [Chrome] extensão captura aba + mic
     │  WebSocket (PCM16, canais tab/mic)
     ▼
@@ -138,6 +170,7 @@ As skills ficam em `.opencode/skills/` e são carregadas pelo agente quando voc�
     │
     ├─ 01_transcrever.py  → transcricao.json (timestamps)
     ├─ 02_diarizar.py     → diarizacao.json (Falante 1, 2...)
+    ├─ fundir.py          → funde speakers por similaridade de voz
     ├─ 03_alinhar.py      → <evento>/transcricoes/<evento>.md (diarizado)
     └─ 04_notas.py        → <evento>/notas/<evento>.md (resumo + plano de ação)
     │
