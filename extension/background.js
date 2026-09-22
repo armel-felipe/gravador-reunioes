@@ -52,6 +52,20 @@ async function hideToaster(tabId) {
   }
 }
 
+async function hideToastersEmTodasAsAbas() {
+  const tabs = await chrome.tabs.query({});
+  await Promise.allSettled(tabs.map((tab) => hideToaster(tab.id)));
+}
+
+async function pararOffscreen() {
+  if (!(await chrome.offscreen.hasDocument())) return;
+  try {
+    await chrome.runtime.sendMessage({ type: "stop" });
+  } catch (e) {
+    // offscreen pode já ter encerrado; a limpeza do estado continua
+  }
+}
+
 async function getRecordingState() {
   const { recording } = await chrome.storage.session.get("recording");
   if (!recording) return false;
@@ -88,10 +102,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "stop") {
     (async () => {
       const { recordingTabId } = await chrome.storage.session.get("recordingTabId");
-      await chrome.runtime.sendMessage({ type: "stop" });
+      await pararOffscreen();
       await chrome.storage.session.set({ recording: false });
       await chrome.storage.session.remove("startTime", "recordingTabId");
-      if (recordingTabId !== undefined) await hideToaster(recordingTabId);
+      await hideToastersEmTodasAsAbas();
       // Fecha o offscreen: libera a aba e o microfone imediatamente
       try {
         await chrome.offscreen.closeDocument();
@@ -99,7 +113,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // já fechado — ok
       }
       sendResponse({ ok: true });
-    })();
+    })().catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
 

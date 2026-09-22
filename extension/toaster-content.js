@@ -77,6 +77,9 @@
         startTime = resp.startTime || Date.now();
         el.style.display = "flex";
         updateTimer();
+      } else {
+        startTime = null;
+        el.style.display = "none";
       }
     });
   } catch (e) {
