@@ -75,7 +75,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const streamId = await getStreamIdComRetry(tab.id);
       const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId, comMic: msg.comMic !== false });
       if (resp && resp.ok) {
-        await chrome.storage.session.set({ recording: true });
+        await chrome.storage.session.set({ recording: true, recordingTabId: tab.id });
         await showToaster(tab.id);
         sendResponse({ ok: true });
       } else {
@@ -87,11 +87,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "stop") {
     (async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const { recordingTabId } = await chrome.storage.session.get("recordingTabId");
       await chrome.runtime.sendMessage({ type: "stop" });
       await chrome.storage.session.set({ recording: false });
-      await chrome.storage.session.remove("startTime");
-      if (tab && tab.id !== undefined) await hideToaster(tab.id);
+      await chrome.storage.session.remove("startTime", "recordingTabId");
+      if (recordingTabId !== undefined) await hideToaster(recordingTabId);
       // Fecha o offscreen: libera a aba e o microfone imediatamente
       try {
         await chrome.offscreen.closeDocument();
@@ -106,8 +106,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "getState") {
     (async () => {
       const recording = await getRecordingState();
-      const { startTime } = await chrome.storage.session.get("startTime");
-      sendResponse({ recording, startTime: recording ? startTime : null });
+      const { startTime, recordingTabId } = await chrome.storage.session.get(["startTime", "recordingTabId"]);
+      const isRecordingTab = recording && sender && sender.tab && sender.tab.id === recordingTabId;
+      sendResponse({ recording, startTime: recording ? startTime : null, isRecordingTab });
     })();
     return true;
   }

@@ -73,7 +73,7 @@
   // Estado inicial (ex.: página recarregou durante a gravação)
   try {
     chrome.runtime.sendMessage({ type: "getState" }, (resp) => {
-      if (resp && resp.recording) {
+      if (resp && resp.recording && resp.isRecordingTab) {
         startTime = resp.startTime || Date.now();
         el.style.display = "flex";
         updateTimer();
