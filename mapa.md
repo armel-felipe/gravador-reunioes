@@ -38,13 +38,13 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 ---
 
 ### `subir-servidor`
-**Acionada por:** "sobe o servidor", "inicia o servidor", "liga o gravador"
+**Acionada por:** "sobe o servidor", "inicia o servidor", "liga o gravador", "para o servidor", "desliga o gravador"
 
 **O que faz:**
 1. Checa se já está no ar (`curl http://127.0.0.1:8765/health`) e evita subir duplicado
 2. Sobe o `./start.sh` **desacoplado da sessão** via `launchctl submit` (job `com.armel.gravador-servidor`) — sobrevive ao fechamento do terminal/app
 3. Confirma que o `/health` responde `{"status":"ok"}` e informa PID e log (`/tmp/gravador_server.log`)
-4. Para parar: `launchctl remove com.armel.gravador-servidor`
+4. **Parar:** checa se está no ar, remove o job com `launchctl remove com.armel.gravador-servidor` e confirma que o job sumiu do `launchctl` e a porta parou de responder
 
 ---
 
@@ -157,7 +157,7 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 ## 🔄 Fluxo completo (visão geral)
 
 ```
-[Chat] "sobe o servidor" → skill subir-servidor → ./start.sh (launchd, 127.0.0.1:8765)
+[Chat] "sobe o servidor" / "para o servidor" → skill subir-servidor → ./start.sh / launchctl remove (launchd, 127.0.0.1:8765)
     │
     ▼
 [Chrome] extensão captura aba + mic
