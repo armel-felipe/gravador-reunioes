@@ -5,6 +5,7 @@ let tabStream = null;
 let micStream = null;
 let workletNodes = [];
 let ctx = null;
+let stopPromise = null;
 
 function connectWs() {
   return new Promise((resolve, reject) => {
@@ -95,28 +96,39 @@ async function startRecording(nome, streamId, comMic) {
   }
 }
 
-async function stopRecording() {
-  const currentWs = ws;
-  if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-    try {
-      await aguardarEncerramento(currentWs);
-    } catch (e) {
-      // O servidor ainda salva o que recebeu quando a conexão cai.
-    } finally {
-      currentWs.close();
+function stopRecording() {
+  // O toaster e o background podem disparar a parada quase simultaneamente.
+  // Compartilhar a mesma Promise evita dois handshakes no mesmo WebSocket.
+  if (stopPromise) return stopPromise;
+
+  stopPromise = (async () => {
+    const currentWs = ws;
+    if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+      try {
+        await aguardarEncerramento(currentWs);
+      } catch (e) {
+        // O servidor ainda salva o que recebeu quando a conexão cai.
+      } finally {
+        currentWs.close();
+      }
     }
-  }
-  if (tabStream) tabStream.getTracks().forEach((t) => t.stop());
-  if (micStream) micStream.getTracks().forEach((t) => t.stop());
-  tabStream = null;
-  micStream = null;
-  workletNodes = [];
-  ws = null;
-  if (ctx) {
-    ctx.close();
-    ctx = null;
-  }
-  return { ok: true };
+    if (tabStream) tabStream.getTracks().forEach((t) => t.stop());
+    if (micStream) micStream.getTracks().forEach((t) => t.stop());
+    tabStream = null;
+    micStream = null;
+    workletNodes = [];
+    ws = null;
+    if (ctx) {
+      ctx.close();
+      ctx = null;
+    }
+    return { ok: true };
+  })();
+
+  stopPromise = stopPromise.finally(() => {
+    stopPromise = null;
+  });
+  return stopPromise;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -124,7 +136,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     startRecording(msg.nome, msg.streamId, msg.comMic !== false).then(sendResponse).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
-  if (msg.type === "stop") {
+  if (msg.type === MENSAGEM_PARAR_OFFSCREEN) {
     stopRecording().then(sendResponse).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }

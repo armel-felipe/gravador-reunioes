@@ -1,4 +1,5 @@
 // Service worker: gerencia o offscreen document e repassa mensagens do popup.
+importScripts("stop-routing.js");
 
 async function ensureOffscreen() {
   const has = await chrome.offscreen.hasDocument();
@@ -67,7 +68,7 @@ async function restaurarToasterSeGravando() {
 async function pararOffscreen() {
   if (!(await chrome.offscreen.hasDocument())) return;
   try {
-    await chrome.runtime.sendMessage({ type: "stop" });
+    await chrome.runtime.sendMessage({ type: MENSAGEM_PARAR_OFFSCREEN });
   } catch (e) {
     // offscreen pode já ter encerrado; a limpeza do estado continua
   }
@@ -117,10 +118,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "stop") {
     (async () => {
       const { recordingTabId } = await chrome.storage.session.get("recordingTabId");
-      await pararOffscreen();
+      await Promise.all([
+        pararOffscreen(),
+        hideToastersEmTodasAsAbas(),
+      ]);
       await chrome.storage.session.set({ recording: false });
       await chrome.storage.session.remove("startTime", "recordingTabId");
-      await hideToastersEmTodasAsAbas();
       // Fecha o offscreen: libera a aba e o microfone imediatamente
       try {
         await chrome.offscreen.closeDocument();
