@@ -62,8 +62,10 @@ def fundir_por_similaridade(embeddings: dict, por_speaker: dict, limiar: float) 
     por_speaker: {speaker: [segmentos]}
     Retorna: {speaker_original: speaker_final}
     """
+    # Universo = todos os speakers da diarização; quem ficou sem embedding
+    # (ex.: só falas < 0.5s) permanece com o próprio rótulo, sem quebrar.
     speakers = list(embeddings.keys())
-    fundidos = {sp: sp for sp in speakers}
+    fundidos = {sp: sp for sp in por_speaker}
     for i in range(len(speakers)):
         for j in range(i + 1, len(speakers)):
             a, b = speakers[i], speakers[j]
