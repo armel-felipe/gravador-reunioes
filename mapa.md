@@ -55,7 +55,7 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 ### `01_transcrever.py` — Transcrição (Whisper)
 - **Entrada:** `99_material/<evento>/audio/<evento>.wav`
 - **Saída:** `99_material/<evento>/transcricoes/_tmp/<evento>_transcricao.json` (lista de `{start, end, text}`)
-- **Tecnologia:** faster-whisper (local, Apple Silicon), modelo `large-v3` (configurável)
+- **Tecnologia:** faster-whisper (local, Apple Silicon), modelo `turbo` (large-v3-turbo, ~1,6 GB baixado na 1ª execução; configurável via `whisper.model`)
 - **Uso:** `.venv/bin/python scripts/01_transcrever.py <nome_base>`
 
 ### `02_diarizar.py` — Diarização de vozes (pyannote)
@@ -68,7 +68,7 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 ### `fundir.py` — Fusão de speakers (embeddings de voz)
 - **Entrada:** `99_material/<evento>/transcricoes/_tmp/<evento>_diarizacao.json`
 - **Saída:** o mesmo JSON com os rótulos remapeados (ex.: 5 "Falantes" → 3)
-- **Lógica:** extrai o embedding médio de voz de cada speaker (até 20 segmentos mais longos, pyannote) e funde dois speakers apenas quando a similaridade cosine é ≥ 0,85 — sem heurística de duração/vizinhança
+- **Lógica:** extrai o embedding médio de voz de cada speaker (até 20 segmentos mais longos, pyannote) e funde dois speakers apenas quando a similaridade cosine é ≥ limiar — configurável em `diarizacao.limiar_fusao` do `config.yaml` (default do código: 0,85) — sem heurística de duração/vizinhança. Speakers sem embedding (só falas < 0,5s) ficam com o próprio rótulo, sem quebrar
 - **Uso:** `.venv/bin/python scripts/fundir.py <nome_base>`
 
 ### `03_alinhar.py` — Alinhamento (transcrição × diarização)
@@ -108,6 +108,7 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 | `test_notas.py` | Testes do prompt de notas |
 | `test_limpar.py` | Testes da limpeza |
 | `test_pendentes.py` | Testes da listagem de pendentes |
+| `test_fundir.py` | Testes da fusão de speakers (inclui regressão do `KeyError` de speaker sem embedding) |
 | `requirements.txt` | Dependências do pipeline (faster-whisper, pyannote, huggingface_hub, numpy, pyyaml, pytest) |
 
 ---
