@@ -1,6 +1,6 @@
 # Configuração central do gravador de reuniões
 whisper:
-  model: "medium"         # large-v3 | medium (trocar se lento)
+  model: "turbo"          # large-v3 | turbo | medium (trocar se lento)
   device: "auto"           # auto | cpu | cuda | mps
   compute_type: "auto"     # auto | int8 | float16
 
