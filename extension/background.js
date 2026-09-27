@@ -105,7 +105,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const streamId = await getStreamIdComRetry(tab.id);
       const resp = await chrome.runtime.sendMessage({ type: "start", nome: msg.nome, streamId, comMic: msg.comMic !== false });
       if (resp && resp.ok) {
-        await chrome.storage.session.set({ recording: true, recordingTabId: tab.id });
+        await chrome.storage.session.set({ recording: true, recordingTabId: tab.id, startTime: Date.now() });
         await showToaster(tab.id);
         sendResponse({ ok: true });
       } else {

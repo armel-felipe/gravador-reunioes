@@ -81,7 +81,6 @@ toggleBtn.addEventListener("click", async () => {
     const resp = await chrome.runtime.sendMessage({ type: "start", nome, comMic: comMicCheckbox.checked });
     if (resp && resp.ok) {
       recording = true;
-      await chrome.storage.session.set({ startTime: Date.now() });
       updateTimer();
       timerInterval = setInterval(updateTimer, 1000);
       statusDiv.textContent = "Gravando…";
