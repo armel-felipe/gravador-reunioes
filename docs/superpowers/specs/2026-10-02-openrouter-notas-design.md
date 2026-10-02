@@ -47,6 +47,7 @@ Semântica:
 - **`notas.provider`** — `ollama` (padrão quando a seção `notas` não existir, para não quebrar config antigo) ou `openrouter`.
 - **`openrouter.base_url`** — segue a mesma convenção do `ollama.cloud_base_url`: guardada **sem** `/v1`; o código acrescenta `/v1/chat/completions`.
 - **`openrouter.api_key_env`** — contém apenas o **nome** da variável de ambiente com a chave. A chave em si fica no `.env`, que não é lido, editado nem versionado (regra do `AGENTS.md`).
+  - **Qualquer nome funciona.** `OPENROUTER_API_KEY` é apenas o valor padrão que vem no arquivo; se a sua variável tiver outro nome, basta trocá-lo em `openrouter.api_key_env` — **sem nenhuma mudança de código**. O código não procura nomes alternativos nem 'adivinha': lê exatamente o nome que estiver aqui, e o erro aponta os dois lados (o nome da env var e a chave do `config.yaml` a ajustar).
 - **`openrouter.reasoning`** — `false` envia `"reasoning": {"enabled": false}` no payload (recomendado para o MiMo-V2.6-Flash: modelo de raciocínio, que com o "pensamento" ligado pode demorar muito ou devolver conteúdo vazio); `true` omite o campo e deixa o comportamento padrão do provedor.
 
 `.env.example` ganha a linha comentada da chave nova (sem valor real):
@@ -89,7 +90,7 @@ Os erros passam a ser explícitos, antes e depois da chamada:
 |---|---|
 | `notas.provider` desconhecido | `provider inválido: 'X' (use 'ollama' ou 'openrouter')` |
 | `provider = openrouter` e `openrouter.model` vazio | `modelo do OpenRouter não configurado — defina openrouter.model no config.yaml` |
-| Variável de ambiente da chave ausente/vazia | `API key não configurada — defina a env var <NOME>` |
+| Variável de ambiente da chave ausente/vazia | `API key não configurada — defina a env var <NOME> no .env (ou ajuste <chave do config> no config.yaml para o nome da variável que você usa)` |
 | HTTP 4xx/5xx (chave inválida, sem créditos, modelo inexistente) | erro com o status e o **corpo da resposta** da API (hoje o motivo é engolido pelo `raise_for_status()`) |
 | Resposta válida, mas sem texto e com `reasoning` preenchido | mensagem explicando que o modelo gastou o limite no raciocínio e sugerindo `openrouter.reasoning: false` |
 
