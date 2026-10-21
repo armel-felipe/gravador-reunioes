@@ -1,6 +1,6 @@
 # Configuração central do gravador de reuniões
 whisper:
-  model: "turbo"          # large-v3 | turbo | medium (trocar se lento)
+  model: "medium"         # large-v3 | turbo | medium (trocar se lento)
   device: "auto"           # auto | cpu | cuda | mps
   compute_type: "auto"     # auto | int8 | float16
 
@@ -11,21 +11,49 @@ diarizacao:
   max_speakers: null
   limiar_fusao: 0.5        # similaridade mínima (cosine) para fundir speakers (0.0-1.0)
 
-ollama:
-  provider: "local"        # local | cloud
-  # provider: "cloud"        # local | cloud
-  # Modelos locais disponíveis (ollama list):
-  # gemma4:26b-mlx
-  # qwen3.6:35b-a3b-q4_K_M
-  # qwen3.8:27b-mlx
-  # ornith-1.5:35b
-  local_model: "qwen3.6:35b-a3b-q4_K_M"
-  cloud_model: "glm-5.3-flash:cloud"
-  cloud_base_url: "https://ollama.com"       # base SEM /v1 (ex.: https://ollama.com); o código adiciona /v1/chat/completions
-  cloud_api_key_env: "LPR_BZ685_OLLAMA_API_KEY"  # nome da env var com a chave
+# Selecione um único perfil em `active`.
+# Perfis disponíveis: llama-cpp | ollama-local | ollama-cloud | llm-studio | openrouter.
+llm:
+  active: "llama-cpp"
+
+  providers:
+    llama-cpp:
+      # llama.cpp server expõe uma API compatível com OpenAI em /v1.
+      type: "openai"
+      base_url: "http://100.87.71.48:18080/v1"
+      model: "qwen3.6-35b-a3b-uncensored-heretic-native-mtp-preserved-apex-i-compact"
+
+    ollama-local:
+      type: "ollama"
+      base_url: "http://localhost:11434"
+      model: "qwen3.6:35b-a3b-q4_K_M"
+
+    ollama-cloud:
+      type: "openai"
+      base_url: "https://ollama.com/v1"
+      model: "glm-5.3-flash:cloud"
+      api_key_env: "LPR_BZ685_OLLAMA_API_KEY"
+      max_tokens: 8192
+      reasoning_effort: "low"
+      retries: 8
+
+    llm-studio:
+      # LM Studio expõe uma API compatível com OpenAI em /v1.
+      # O ID precisa ser o mesmo retornado por <base_url>/models.
+      type: "openai"
+      base_url: "http://100.87.71.48:1234/v1"
+      model: "qwen3.8-27b-splash"
+
+    openrouter:
+      type: "openai"
+      base_url: "https://openrouter.ai/api/v1"
+      model: "MiMo-V2.6-Flash"
+      api_key_env: "OPENROUTER_API_KEY"
+      max_tokens: 8192
+      retries: 8
 
 caminhos:
   material_dir: "99_material"   # raiz do material; cada gravação vira 99_material/<evento>/
 
 limpeza:
-  dias_retencao_audio: 30
+  dias_retencao_audio: 5

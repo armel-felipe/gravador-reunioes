@@ -44,12 +44,14 @@ O servidor (`server/main.py`) escuta só em `127.0.0.1:8765` e é pré-requisito
 - Log: `/tmp/gravador_server.log`
 - Parar: `launchctl remove com.armel.gravador-servidor`
 
+Depois de instalar `native_host/install_native_host.sh`, o complemento Chrome também pode executar esse mesmo ciclo com os botões **Ligar servidor** e **Desligar servidor**. O host aceita somente `status`, `start` e `stop`; ao desligar, o complemento confirma com o usuário e encerra a gravação antes de remover o job.
+
 ## Regras críticas
 
 - Rode os comandos documentados a partir da raiz do projeto.
 - Nunca leia, exponha, edite ou versione `.env` (token do HuggingFace). Use `.env.example` como referência.
 - `99_material/` é material gerado: não apagar, mover ou reorganizar sem pedido explícito.
-- `config.yaml` é a configuração central (modelo do Whisper, limites de diarização, provider/modelo do Ollama, retenção de áudio). Prefira ajustá-lo a fixar valores no código.
+- `config.yaml` é a configuração central (modelo do Whisper, limites de diarização, perfil LLM ativo e seus provedores, retenção de áudio). Prefira ajustá-lo a fixar valores no código.
 - O processamento de gravações é manual, sob demanda no chat — não existe automação de transcrição (a de limpeza roda às 08:00).
-- Testes: `.venv/bin/python -m pytest scripts/ server/ -v`
+- Testes: `.venv/bin/python -m pytest scripts/ server/ native_host/ -v` e `node --test extension/*.test.js`
 - Abrir a porta 8765 é bloqueado pelo sandbox: subir o servidor exige execução fora do sandbox.

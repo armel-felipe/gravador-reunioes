@@ -1,6 +1,9 @@
-"""Gera notas (resumo + plano de ação) via Ollama, com map-reduce para reuniões longas."""
+"""Gera notas (resumo + plano de ação) via LLM local/cloud, com map-reduce."""
 import os
 import re
+import uuid
+import time
+import hashlib
 from pathlib import Path
 
 import requests
@@ -14,6 +17,7 @@ load_dotenv(ROOT / ".env", override=False)
 # Configuração do map-reduce (em minutos)
 BLOCO_MINUTOS = 10
 OVERLAP_MINUTOS = 2
+REDUCE_GRUPO = 2
 
 REGRAS_QUALIDADE = """Regras de qualidade:
 - Preserve nomes, empresas, números, datas e decisões presentes no texto, além de exemplos, instituições, valores e referências.
@@ -145,60 +149,166 @@ def dividir_em_blocos(transcricao: str, bloco_min: int = BLOCO_MINUTOS, overlap_
 
 
 def chamar_ollama(cfg: dict, prompt: str) -> str:
-    provider = cfg["ollama"]["provider"]
-    if provider == "local":
-        url = "http://localhost:11434/api/generate"
-        model = cfg["ollama"]["local_model"]
+    llm = cfg.get("llm") or {}
+    provider = llm.get("active")
+    profiles = llm.get("providers") or {}
+    profile = profiles.get(provider)
+    if not provider or not profile:
+        disponiveis = ", ".join(profiles) or "nenhum"
+        raise RuntimeError(
+            f"perfil LLM inválido: {provider!r} (use um de: {disponiveis})"
+        )
+
+    tipo = profile.get("type")
+    model = profile.get("model")
+    if not model:
+        raise RuntimeError(f"modelo não configurado no perfil LLM {provider!r}")
+
+    if tipo == "ollama":
+        url = profile.get("base_url", "http://localhost:11434").rstrip("/") + "/api/generate"
         payload = {"model": model, "prompt": prompt, "stream": False}
         headers = {}
-    elif provider == "cloud":
-        base_url = cfg["ollama"]["cloud_base_url"].rstrip("/")
-        url = base_url + "/v1/chat/completions"
-        model = cfg["ollama"]["cloud_model"]
-        env_name = cfg["ollama"]["cloud_api_key_env"]
-        api_key = os.environ.get(env_name, "")
-        if not api_key:
-            raise RuntimeError(f"API key não configurada — defina a env var {env_name}")
+    elif tipo == "openai":
+        url = profile["base_url"].rstrip("/") + "/chat/completions"
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
         }
-        headers = {"Authorization": f"Bearer {api_key}"}
+        if "max_tokens" in profile:
+            payload["max_tokens"] = profile["max_tokens"]
+        if "reasoning_effort" in profile:
+            # Campo aceito pelo endpoint OpenAI-compatible do Ollama Cloud.
+            payload["reasoning_effort"] = profile["reasoning_effort"]
+        headers = {}
+        env_name = profile.get("api_key_env")
+        if env_name:
+            api_key = os.environ.get(env_name, "")
+            if not api_key:
+                raise RuntimeError(f"API key não configurada — defina a env var {env_name}")
+            headers["Authorization"] = f"Bearer {api_key}"
     else:
-        raise RuntimeError(f"provider inválido: {provider!r} (use 'local' ou 'cloud')")
-    resp = requests.post(url, json=payload, headers=headers, timeout=600)
-    resp.raise_for_status()
-    if provider == "cloud":
-        return resp.json()["choices"][0]["message"]["content"]
-    return resp.json()["response"]
+        raise RuntimeError(f"tipo de perfil LLM inválido: {tipo!r}")
+
+    tentativas = profile.get("retries", 1)
+    for tentativa in range(tentativas):
+        resp = requests.post(url, json=payload, headers=headers, timeout=600)
+        resp.raise_for_status()
+        if tipo == "openai":
+            content = resp.json()["choices"][0]["message"].get("content", "").strip()
+            if content:
+                return content
+            if tentativa + 1 < tentativas:
+                time.sleep(min(2 ** tentativa, 8))
+                continue
+            raise RuntimeError("modelo retornou conteúdo vazio para as notas")
+        return resp.json()["response"]
+    raise RuntimeError("não foi possível gerar notas")
 
 
-def gerar_notas_map_reduce(cfg: dict, transcricao: str) -> str:
+def _id_checkpoint(cfg: dict, transcricao: str) -> str:
+    llm = cfg.get("llm") or {}
+    provider = llm.get("active", "")
+    model = (llm.get("providers") or {}).get(provider, {}).get("model", provider)
+    material = "|".join(("v1", provider, model, PROMPT_MAP, REGRAS_QUALIDADE, transcricao))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def _chamar_reduce_com_checkpoint(cfg: dict, resumos: list, checkpoint: Path = None) -> str:
+    if checkpoint is not None and checkpoint.exists():
+        resumo = checkpoint.read_text(encoding="utf-8").strip()
+        if resumo:
+            return resumo
+    prompt = montar_prompt_reduce("\n\n---\n\n".join(resumos))
+    resumo = chamar_ollama(cfg, prompt)
+    if checkpoint is not None:
+        temporario = checkpoint.with_suffix(".tmp")
+        temporario.write_text(resumo + "\n", encoding="utf-8")
+        temporario.replace(checkpoint)
+    return resumo
+
+
+def gerar_notas_map_reduce(cfg: dict, transcricao: str, checkpoint_dir: Path = None) -> str:
     """Map-reduce: divide em blocos, resume cada um, consolida no final."""
     blocos = dividir_em_blocos(transcricao)
     if len(blocos) <= 1:
         # Reunião curta — prompt único (comportamento original)
         return chamar_ollama(cfg, montar_prompt(transcricao))
 
+    pasta_checkpoint = None
+    if checkpoint_dir is not None:
+        pasta_checkpoint = Path(checkpoint_dir) / f"notas_map_{_id_checkpoint(cfg, transcricao)}"
+        pasta_checkpoint.mkdir(parents=True, exist_ok=True)
+
     print(f"Map-reduce: {len(blocos)} blocos de ~{BLOCO_MINUTOS} min (overlap {OVERLAP_MINUTOS} min)")
     resumos = []
     for i, bloco in enumerate(blocos, 1):
-        print(f"  Map {i}/{len(blocos)}...")
-        prompt = montar_prompt_map(bloco, i, len(blocos))
-        resumos.append(chamar_ollama(cfg, prompt))
+        checkpoint = pasta_checkpoint / f"map_{i:02d}.md" if pasta_checkpoint else None
+        resumo = checkpoint.read_text(encoding="utf-8").strip() if checkpoint and checkpoint.exists() else ""
+        if resumo:
+            print(f"  Map {i}/{len(blocos)} — checkpoint reutilizado")
+        else:
+            print(f"  Map {i}/{len(blocos)}...")
+            prompt = montar_prompt_map(bloco, i, len(blocos))
+            resumo = chamar_ollama(cfg, prompt)
+            if checkpoint:
+                temporario = checkpoint.with_suffix(".tmp")
+                temporario.write_text(resumo + "\n", encoding="utf-8")
+                temporario.replace(checkpoint)
+        resumos.append(resumo)
 
-    print("  Reduce: consolidando...")
-    prompt = montar_prompt_reduce("\n\n---\n\n".join(resumos))
-    return chamar_ollama(cfg, prompt)
+    if len(resumos) <= REDUCE_GRUPO:
+        print("  Reduce: consolidando...")
+        checkpoint = pasta_checkpoint / "reduce_final.md" if pasta_checkpoint else None
+        return _chamar_reduce_com_checkpoint(cfg, resumos, checkpoint)
+
+    print(f"  Reduce: consolidando em grupos de até {REDUCE_GRUPO}...")
+    parciais = resumos
+    nivel = 1
+    while len(parciais) > REDUCE_GRUPO:
+        grupos = [parciais[i:i + REDUCE_GRUPO] for i in range(0, len(parciais), REDUCE_GRUPO)]
+        proximos = []
+        for i, grupo in enumerate(grupos, 1):
+            nome = "reduce_grupo" if nivel == 1 else f"reduce_nivel_{nivel}"
+            checkpoint = pasta_checkpoint / f"{nome}_{i:02d}.md" if pasta_checkpoint else None
+            proximos.append(_chamar_reduce_com_checkpoint(cfg, grupo, checkpoint))
+        parciais = proximos
+        nivel += 1
+
+    print("  Reduce final: consolidando grupos...")
+    checkpoint = pasta_checkpoint / "reduce_final.md" if pasta_checkpoint else None
+    return _chamar_reduce_com_checkpoint(cfg, parciais, checkpoint)
 
 
-def main(nome_base: str):
+def _write_notes_atomic(destination: Path, text: str) -> None:
+    if not text.strip():
+        raise ValueError("notas vazias não podem marcar o evento como processado")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with temporary.open("w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def main(nome_base: str, model_override: str = None):
     cfg = load_config()
+    if model_override:
+        if not model_override.strip() or len(model_override) > 256 or any(ord(character) < 32 for character in model_override):
+            raise ValueError("identificador de modelo inválido")
+        active = cfg.get("llm", {}).get("active")
+        profiles = cfg.get("llm", {}).get("providers", {})
+        profile = profiles.get(active)
+        if not profile:
+            raise ValueError(f"perfil LLM ativo inválido: {active!r}")
+        profile["model"] = model_override
     paths = audio_paths(nome_base)
     transcricao = paths["transcricao_md"].read_text(encoding="utf-8")
-    texto = gerar_notas_map_reduce(cfg, transcricao)
+    texto = gerar_notas_map_reduce(cfg, transcricao, checkpoint_dir=paths["transcricao_md"].parent / "_tmp")
     destino = paths["notas_md"]
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(f"# Notas — {nome_base}\n\n{texto}\n", encoding="utf-8")
+    _write_notes_atomic(destino, f"# Notas — {nome_base}\n\n{texto}\n")
     print(f"Notas → {destino}")

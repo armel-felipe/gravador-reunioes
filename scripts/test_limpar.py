@@ -23,7 +23,10 @@ def _criar_evento(raiz: Path, nome: str, idade_dias: float) -> Path:
 
 def test_limpar_apaga_so_antigos():
     with tempfile.TemporaryDirectory() as tmp:
-        _criar_evento(Path(tmp), "2020_01_01_10_00_velho", 40)
+        velho = _criar_evento(Path(tmp), "2020_01_01_10_00_velho", 40)
+        notas = velho / "notas"
+        notas.mkdir()
+        (notas / "2020_01_01_10_00_velho.md").write_text("notas")
         _criar_evento(Path(tmp), "2026_09_09_10_00_novo", 1)
         apagados = limpar_audios_antigos(tmp, dias=30)
         assert not (Path(tmp) / "2020_01_01_10_00_velho" / "audio").exists()
@@ -45,3 +48,14 @@ def test_limpar_mantem_transcricoes_e_notas():
         assert not (evento / "audio").exists()
         assert (trans / "2020_01_01_10_00_velho.md").exists()
         assert (notas / "2020_01_01_10_00_velho.md").exists()
+
+
+def test_limpar_preserva_audio_antigo_sem_nota():
+    with tempfile.TemporaryDirectory() as tmp:
+        evento = _criar_evento(Path(tmp), "2020_01_01_10_00_sem_nota", 40)
+        audio = evento / "audio" / "2020_01_01_10_00_sem_nota.wav"
+
+        apagados = limpar_audios_antigos(tmp, dias=30)
+
+        assert audio.exists()
+        assert apagados == []

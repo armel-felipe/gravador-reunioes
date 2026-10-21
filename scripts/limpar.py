@@ -21,6 +21,8 @@ def limpar_audios_antigos(material_dir: str, dias: int) -> list:
         audio_dir = evento / "audio"
         if not audio_dir.exists():
             continue
+        if not (evento / "notas" / f"{evento.name}.md").exists():
+            continue
         wavs = list(audio_dir.glob("*.wav"))
         if not wavs:
             continue

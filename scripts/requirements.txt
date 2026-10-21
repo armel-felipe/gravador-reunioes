@@ -4,4 +4,5 @@ huggingface_hub==0.26.*
 numpy==1.26.*
 pyyaml==6.*
 python-dotenv==1.*
+notebook==7.*
 pytest==8.*

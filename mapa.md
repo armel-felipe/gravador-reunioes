@@ -14,13 +14,14 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 
 **O que faz:**
 1. Localiza o evento em `99_material/<evento>/audio/` (o mais recente, ou o nome que você deu)
-2. Roda o pipeline completo em sequência: `01_transcrever.py` → `02_diarizar.py` → `03_alinhar.py` → `04_notas.py`
-3. Inspeciona cada saída intermediária (em `99_material/<evento>/transcricoes/_tmp/`) antes de seguir
-4. Se a diarização vier ruim (rótulos demais, falas cruzadas), ajusta `min_speakers`/`max_speakers` no `config.yaml` e re-roda
-5. Se o Whisper estiver lento, troca para `medium` e re-roda
-6. Salva a transcrição diarizada e as notas, e mostra um resumo do que foi gerado
+2. Inicia um job local one-shot via `07_processar.py`; a resposta do chat retorna sem esperar o pipeline longo
+3. O worker roda em sequência: `01_transcrever.py` → `02_diarizar.py` → `fundir.py` → `03_alinhar.py` → `04_notas.py`
+4. Persiste status e logs por evento, valida saídas e pode retomar após falha sem repetir etapas concluídas
+5. Para todas as pendentes, cria um snapshot e processa eventos sequencialmente; não instala agenda recorrente
+6. Consulte jobs com `status`; retome com `resume --job-id`, `resume --evento` ou `resume --pendentes`
+7. Só informa conclusão após notas finais estarem gravadas e validadas
 
-**Modelo:** usa o `ollama.local_model`/`ollama.cloud_model` do `config.yaml`. Você pode trocar na hora: *"usa o gemma4 desta vez"*.
+**Modelo:** usa o perfil selecionado em `llm.active` no `config.yaml`. O padrão é `llama-cpp` (`http://100.87.71.48:18080/v1`, `qwen3.6-35b-a3b-uncensored-heretic-native-mtp-preserved-apex-i-compact`). Um ID pedido explicitamente vai como override por job, sem alterar `config.yaml`. Os outros perfis disponíveis são `ollama-local`, `ollama-cloud`, `llm-studio` e `openrouter`.
 
 **Qualidade do prompt:** local e Cloud recebem o mesmo prompt. A geração deve preservar nomes, empresas, números, datas, decisões, responsáveis e prazos, sem inventar informações, com saída concisa.
 
@@ -45,6 +46,8 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 2. Sobe o `./start.sh` **desacoplado da sessão** via `launchctl submit` (job `com.armel.gravador-servidor`) — sobrevive ao fechamento do terminal/app
 3. Confirma que o `/health` responde `{"status":"ok"}` e informa PID e log (`/tmp/gravador_server.log`)
 4. **Parar:** checa se está no ar, remove o job com `launchctl remove com.armel.gravador-servidor` e confirma que o job sumiu do `launchctl` e a porta parou de responder
+
+O popup da extensão também controla o mesmo job depois que o host Native Messaging é instalado. O desligamento pede confirmação e encerra uma gravação ativa antes de remover o job.
 
 ---
 
@@ -77,11 +80,11 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 - **Lógica:** cada fala do Whisper recebe o rótulo do segmento de diarização que cobre o intervalo (sobreposição máxima)
 - **Uso:** `.venv/bin/python scripts/03_alinhar.py <nome_base>`
 
-### `04_notas.py` — Geração de notas (Ollama)
+### `04_notas.py` — Geração de notas (LLM)
 - **Entrada:** `99_material/<evento>/transcricoes/<evento>.md`
 - **Saída:** `99_material/<evento>/notas/<evento>.md` (resumo executivo, tópicos, decisões, plano de ação)
-- **Tecnologia:** Ollama local (`http://localhost:11434`) ou cloud (OpenAI-compatible `/v1/chat/completions`), conforme `config.yaml`
-- **Uso:** `.venv/bin/python scripts/04_notas.py <nome_base>`
+- **Tecnologia:** o perfil `llm.active` seleciona entre llama.cpp, LM Studio, Ollama local, Ollama Cloud e OpenRouter; cada perfil define sua própria URL, modelo e autenticação. O padrão é llama.cpp com `qwen3.6-35b-a3b-uncensored-heretic-native-mtp-preserved-apex-i-compact`.
+- **Uso:** `.venv/bin/python scripts/04_notas.py <nome_base> [--modelo <ID>]` (override apenas nesta execução)
 
 ### `05_limpar.py` — Limpeza de áudios antigos
 - **Entrada:** `99_material/` (eventos com `audio/`)
@@ -92,6 +95,12 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 - **Entrada:** `99_material/`
 - **Saída:** eventos com áudio mas **sem** `notas/<evento>.md` (o arquivo de notas é o marcador de "processado")
 - **Uso:** `.venv/bin/python scripts/06_pendentes.py`
+
+### `07_processar.py` — Jobs locais sob demanda
+- **Entrada:** `start --evento <nome_base>` ou `start --pendentes` (snapshot atual)
+- **Saída:** job ID imediato; manifesto em `99_material/.processamento/jobs/`, estado e log em cada evento
+- **Lógica:** submete um worker one-shot via `launchctl`; não depende do tempo limite do chat. `status` lista jobs recentes; `resume` retoma etapas ausentes usando saídas válidas. Repouso do Mac pausa o job.
+- **Uso:** `.venv/bin/python scripts/07_processar.py start --evento <nome_base>`; `status`; `resume --job-id <job_id>`
 
 ---
 
@@ -104,6 +113,8 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 | `notas.py` | Lógica de prompt e chamada ao Ollama (testável, usada pelo `04_notas.py`) |
 | `limpar.py` | Lógica pura de limpeza (testável, usada pelo `05_limpar.py`) |
 | `pendentes.py` | Lógica de listagem de pendentes (testável, usada pelo `06_pendentes.py`) |
+| `processamento.py` | Manifestos, locks por evento, validação de etapas, logs e worker sequencial dos jobs locais |
+| `test_processamento.py` | Testes de persistência, retomada, lotes, status e submissão do launchd |
 | `test_alinhar.py` | Testes do alinhamento |
 | `test_notas.py` | Testes do prompt de notas |
 | `test_limpar.py` | Testes da limpeza |
@@ -128,9 +139,10 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 
 | Arquivo | Função |
 |---|---|
-| `manifest.json` | Manifesto MV3: permissões (`tabCapture`, `offscreen`, `storage`, `scripting`), host permissões para `127.0.0.1:8765` e `<all_urls>` |
-| `popup.html` / `popup.js` | Interface: campo nome + botão Gravar/Parar + timer. Checa se o servidor está online antes de gravar |
-| `background.js` | Service worker: cria/gerencia o offscreen document, obtém o `streamId` da aba, repassa mensagens, persiste estado em `chrome.storage.session` |
+| `manifest.json` | Manifesto MV3 com captura, offscreen, armazenamento, scripting e `nativeMessaging` |
+| `popup.html` / `popup.js` | Estado do servidor, ligar/desligar com confirmação e gravação |
+| `server-control.js` | Estados e polling do health check |
+| `background.js` | Coordena gravação, parada segura e mensagens Native Messaging |
 | `offscreen.html` / `offscreen.js` | Página oculta que de fato captura (única com acesso a `mediaDevices`/`AudioContext`): captura aba + microfone, usa `AudioWorkletNode` (API moderna) e envia PCM16 via WebSocket |
 | `worklet.js` | Processador de áudio (AudioWorklet): converte Float32 → PCM16 (acumulando 4096 samples) em thread própria e envia ao offscreen via `port.postMessage()` |
 | `toaster-content.js` | Content script: injeta o controle flutuante (toast) na página — ponto vermelho, timer e botão Parar no canto inferior direito |
@@ -150,6 +162,8 @@ A fonte canônica de manutenção é `.opencode/skills/{skill}/SKILL.md` — a g
 | `.env.example` | Modelo do `.env` com instruções |
 | `.opencode/skills/` | Skills operacionais acionáveis no chat (`subir-servidor`, `processar-gravacao`, `limpar-material`) |
 | `start.sh` | Sobe o servidor: cria o venv na 1ª vez, instala dependências (server + scripts), inicia uvicorn em `127.0.0.1:8765` |
+| `native_host/server_control.py` | Host Native Messaging: aceita somente `status`, `start` e `stop`, usando health check e `launchctl` |
+| `native_host/install_native_host.sh` | Registra o host no Chrome para o usuário atual |
 | `.gitignore` | Ignora `.env`, `.venv`, `99_material/` (conteúdo gerado) |
 | `99_material/` | Material gerado: um diretório por evento (`<evento>/audio/` com `bruto/`, `transcricoes/` com `_tmp/`, `notas/`) |
 

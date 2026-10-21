@@ -66,12 +66,42 @@ async function restaurarToasterSeGravando() {
 }
 
 async function pararOffscreen() {
-  if (!(await chrome.offscreen.hasDocument())) return;
+  if (!(await chrome.offscreen.hasDocument())) return { ok: true };
   try {
-    await chrome.runtime.sendMessage({ type: MENSAGEM_PARAR_OFFSCREEN });
+    return await chrome.runtime.sendMessage({ type: MENSAGEM_PARAR_OFFSCREEN });
   } catch (e) {
-    // offscreen pode já ter encerrado; a limpeza do estado continua
+    return { ok: false, error: "Não foi possível encerrar a gravação." };
   }
+}
+
+async function sendNativeServerCommand(action) {
+  try {
+    return await chrome.runtime.sendNativeMessage("com.armel.gravador.server", { action });
+  } catch (e) {
+    return { ok: false, error: "Ponte do servidor não instalada ou indisponível." };
+  }
+}
+
+async function encerrarGravacao({ forceCleanup = false } = {}) {
+  const recording = await getRecordingState();
+  if (!recording && !forceCleanup) return { ok: true, recording: false };
+
+  const [offscreenResponse] = await Promise.all([
+    pararOffscreen(),
+    hideToastersEmTodasAsAbas(),
+  ]);
+  if (offscreenResponse && offscreenResponse.ok === false) {
+    return offscreenResponse;
+  }
+
+  await chrome.storage.session.set({ recording: false });
+  await chrome.storage.session.remove("startTime", "recordingTabId");
+  try {
+    await chrome.offscreen.closeDocument();
+  } catch (e) {
+    // já fechado — ok
+  }
+  return { ok: true, recording: true };
 }
 
 async function getRecordingState() {
@@ -117,20 +147,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "stop") {
     (async () => {
-      const { recordingTabId } = await chrome.storage.session.get("recordingTabId");
-      await Promise.all([
-        pararOffscreen(),
-        hideToastersEmTodasAsAbas(),
-      ]);
-      await chrome.storage.session.set({ recording: false });
-      await chrome.storage.session.remove("startTime", "recordingTabId");
-      // Fecha o offscreen: libera a aba e o microfone imediatamente
-      try {
-        await chrome.offscreen.closeDocument();
-      } catch (e) {
-        // já fechado — ok
+      sendResponse(await encerrarGravacao({ forceCleanup: true }));
+    })().catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+
+  if (msg.type === "server:status" || msg.type === "server:start") {
+    sendNativeServerCommand(msg.type === "server:status" ? "status" : "start")
+      .then(sendResponse);
+    return true;
+  }
+
+  if (msg.type === "server:stop") {
+    (async () => {
+      const recordingResponse = await encerrarGravacao();
+      if (!recordingResponse.ok) {
+        sendResponse(recordingResponse);
+        return;
       }
-      sendResponse({ ok: true });
+      sendResponse(await sendNativeServerCommand("stop"));
     })().catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }

@@ -1,22 +1,20 @@
 ---
 name: processar-gravacao
-description: "Processa uma gravação de reunião: transcreve (Whisper), diariza vozes (pyannote) e gera notas (Ollama). Acionar quando o usuário pedir \"processa a gravação\", \"processa a última gravação\", \"gera notas da reunião\" ou similar."
+description: "Processa uma gravação de reunião: transcreve (Whisper), diariza vozes (pyannote) e gera notas com o perfil LLM configurado. Acionar quando o usuário pedir \"processa a gravação\", \"processa a última gravação\", \"gera notas da reunião\" ou similar."
 ---
 
 # Processar Gravação
 
 ## Quando usar
-Quando o usuário pedir para processar uma gravação de reunião/aula capturada pela extensão, ou via automação diária.
+Quando o usuário pedir para processar uma gravação de reunião/aula capturada pela extensão, incluindo uma gravação específica, a última gravação ou todas as pendentes. A execução é sempre iniciada sob demanda.
 
 ## Passos
 
-0. **Listar pendentes (se pedido genérico):**
-   - Se o usuário pediu "processa as pendentes" / "processa tudo" / automação diária, rode:
-     ```bash
-     .venv/bin/python scripts/06_pendentes.py
-     ```
-   - O script lista eventos com áudio mas **sem notas** (`notas/<evento>.md` = marcador de processado).
-   - Processe cada um na sequência. Se não houver pendentes, avise e encerre.
+0. **Definir o alvo:**
+   - Para "processa as pendentes" / "processa tudo", inicie o snapshot atual com `start --pendentes`; o worker processa um evento por vez.
+   - Para um evento específico, use o nome-base fornecido ou identifique-o em `99_material/`; para a última gravação, escolha o WAV mais recente por mtime.
+   - Se o pedido for apenas listar pendências, use `.venv/bin/python scripts/06_pendentes.py` e não inicie um job.
+   - Se não houver pendências/áudio, informe e encerre.
 
 1. **Identificar o áudio:**
    - Cada gravação é um evento: `99_material/<nome_base>/audio/<nome_base>.wav` (nome_base = `YYYY_MM_DD_HH_MM_<nome>`).
@@ -24,19 +22,21 @@ Quando o usuário pedir para processar uma gravação de reunião/aula capturada
    - Se pediu "a última", liste os eventos `99_material/*/audio/*.wav` e use o mais recente (por mtime).
    - Se não houver áudio, avise e encerre.
 
-2. **Rodar o pipeline** (da raiz do projeto, com o venv):
+2. **Iniciar o processamento local desacoplado** (da raiz do projeto):
    ```bash
-   .venv/bin/python scripts/01_transcrever.py <nome_base>
-   .venv/bin/python scripts/02_diarizar.py <nome_base>
-   .venv/bin/python scripts/fundir.py <nome_base>   # funde speakers por similaridade de voz
-   .venv/bin/python scripts/03_alinhar.py <nome_base>
-   .venv/bin/python scripts/04_notas.py <nome_base>
+   .venv/bin/python scripts/07_processar.py start --evento <nome_base>
+   # ou para o conjunto pendente atual:
+   .venv/bin/python scripts/07_processar.py start --pendentes
    ```
-   - Inspecione cada saída intermediária em `99_material/<nome_base>/transcricoes/_tmp/` antes de seguir.
-   - Se o usuário pediu outro modelo ("usa o gemma4"), edite `config.yaml` (ollama.local_model) antes do passo 04 e restaure depois.
+   - A confirmação devolve o `job_id`; o comando não espera Whisper, pyannote ou o LLM terminarem. O worker local continua após o fim da chamada do chat ou o fechamento do OpenWork.
+   - Para consultar o status numa conversa atual ou futura, rode `.venv/bin/python scripts/07_processar.py status` (sem job ID lista jobs recentes) ou acrescente `--job-id <job_id>`.
+   - Para retomar um job interrompido, use `resume --job-id <job_id>`, `resume --evento <nome_base>` ou `resume --pendentes`. Saídas válidas e checkpoints existentes são reutilizados.
+   - Se o Mac dormir, o job pausa e continua quando o computador acordar. Não há cron nem agendamento recorrente.
+   - O padrão de notas é o perfil `llm.active: llama-cpp` em `config.yaml`, com modelo `qwen3.6-35b-a3b-uncensored-heretic-native-mtp-preserved-apex-i-compact` no endpoint `http://100.87.71.48:18080/v1`.
+   - Se o usuário pedir outro modelo para esta execução, inicie com `--modelo <ID-exato>`; o override fica no job e só altera a configuração em memória do subprocesso de notas. Nunca edite `config.yaml` para o job.
 
-3. **Verificar qualidade:**
-   - Se a diarização tiver muitos rótulos ou falas cruzadas, ajuste `config.yaml` (diarizacao.min_speakers/max_speakers) e re-rode o passo 02 e 03.
-   - Se o Whisper estiver lento, troque `whisper.model` para `medium` e re-rode.
-
-4. **Entregar:** mostre ao usuário o caminho da transcrição e das notas, e um resumo de 3-5 linhas do conteúdo.
+3. **Acompanhar e validar:**
+   - Em resposta imediata ao start, diga que o job foi iniciado localmente, informe o `job_id` e o comando de status; não diga que a transcrição/notas já terminaram.
+   - Quando o usuário voltar ou pedir status, leia o manifesto do job. Se estiver `queued`/`running`, informe o estágio atual; se estiver `interrupted`/`failed`, explique a falha e ofereça retomar.
+   - Só quando o estado for `completed`, valide os arquivos em `99_material/<nome_base>/transcricoes/` e `notas/`, abra as notas e entregue seus caminhos e resumo de 3–5 linhas.
+   - Em lote, reporte os eventos concluídos e os que falharam; não marque o lote como totalmente concluído quando houver falhas.

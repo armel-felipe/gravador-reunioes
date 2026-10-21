@@ -8,10 +8,18 @@
     button { width: 100%; padding: 8px; font-size: 14px; cursor: pointer; }
     #status { margin-top: 8px; font-size: 12px; color: #555; }
     #timer { font-size: 18px; font-weight: bold; text-align: center; margin: 8px 0; }
+    #serverStatus { margin: 8px 0 4px; font-size: 12px; color: #555; }
+    #serverToggle { background: #f1f1f1; border: 1px solid #bbb; }
+    dialog { width: 220px; border: 1px solid #aaa; border-radius: 6px; padding: 14px; }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.25); }
+    .dialog-actions { display: flex; gap: 6px; margin-top: 12px; }
+    .dialog-actions button { flex: 1; }
   </style>
 </head>
 <body>
   <h3 style="margin:0 0 8px">Gravador de Reuniões</h3>
+  <div id="serverStatus">Servidor: verificando…</div>
+  <button id="serverToggle" type="button" disabled>Verificando…</button>
   <input id="nome" type="text" placeholder="Nome da reunião (ex.: orcamento_ana)">
   <label style="display:block; margin-bottom:8px; font-size:13px;">
     <input id="comMic" type="checkbox" checked style="width:auto; margin:0 4px 0 0; vertical-align:middle;">
@@ -21,6 +29,17 @@
   <button id="toggle">Gravar</button>
   <button id="permMic" style="margin-top:6px; background:#333; color:#fff; border:none; font-size:12px;">🎤 Permitir microfone</button>
   <div id="status"></div>
+  <dialog id="serverConfirm">
+    <form method="dialog">
+      <strong>Desligar servidor?</strong>
+      <p style="font-size:13px; margin-bottom:0">Se houver uma gravação ativa, ela será encerrada e salva antes do desligamento.</p>
+      <div class="dialog-actions">
+        <button value="cancel">Cancelar</button>
+        <button id="confirmServerStop" value="confirm">Desligar</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="server-control.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -12,6 +12,16 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 ## Tasks
 
+### R-011 — Processamento desacoplado sob demanda
+- **Prioridade:** 🔴 Alta
+- **Status:** ✅ Concluída
+- **Criada em:** 2026-10-21
+- **Concluída em:** 2026-10-21
+- **Motivo:** Execuções longas do pipeline ultrapassam o limite da chamada do chat, interrompendo transcrição e notas.
+- **Implementação:** job local one-shot via `launchd`, iniciado apenas por pedido explícito; processamento sequencial de eventos, estado e logs por job, retomada idempotente, consulta de status e gravação atômica das notas.
+- **Escopo excluído:** cron, processamento recorrente, daemon permanente e prevenção do repouso do Mac.
+- **Validação:** 63 testes Python passaram (inclui o teste real de ciclo desacoplado no `launchd`), 12 testes Node passaram; não ficou job launchd ativo.
+
 ### R-009 — Prompt comum com preservação de fatos nas notas
 - **Prioridade:** 🟡 Média
 - **Status:** ✅ Concluída
@@ -149,6 +159,7 @@ Cada task tem um **ID único**, **prioridade** e **status** rastreável.
 
 | Data | Task | Ação |
 |---|---|---|
+| 2026-10-21 | R-011 | ✅ Concluída (job local desacoplado por solicitação, status/retomada e sem agendamento) |
 | 2026-09-10 | R-008 | Criada (solução híbrida launchd + OpenWork — planejada, aguardando validação em uso real) |
 | 2026-09-10 | R-007 | ✅ Concluída (map-reduce: 26min → 3.5min, -87%) |
 | 2026-09-10 | R-007 | Criada e iniciada (map-reduce nas notas) |
